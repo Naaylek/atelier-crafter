@@ -76,9 +76,9 @@ function renderHistory() {
 // ---------- synchro entre appareils ----------
 const syncPanel = document.getElementById("sync-panel");
 const syncBtn = document.getElementById("btn-sync");
-const ICONS = { off: "☁️", ok: "✅", busy: "⏳", error: "⚠️", conflict: "🔀" };
+const ICONS = { off: "☁️", locked: "🔑", ok: "✅", busy: "⏳", error: "⚠️", conflict: "🔀" };
 
-document.getElementById("btn-sync").onclick = () => {
+syncBtn.onclick = () => {
   syncPanel.hidden = !syncPanel.hidden;
   if (!syncPanel.hidden) renderSync();
 };
@@ -88,79 +88,123 @@ function refreshSyncBadge() {
   const s = sync.getStatus();
   syncBtn.textContent = ICONS[s.status] || "☁️";
   syncBtn.title = {
-    off: "Synchro non configurée — cliquer pour l'activer",
+    off: "Synchro à mettre en place",
+    locked: "Mot de passe à saisir",
     ok: "Synchro active" + (s.lastSync ? " · dernier envoi " + new Date(s.lastSync).toLocaleTimeString("fr-FR") : ""),
     busy: "Synchronisation en cours…",
-    error: "Erreur de synchro : " + s.lastError,
+    error: "Erreur : " + s.lastError,
     conflict: "Versions divergentes — ouvre le panneau",
-  }[s.status];
+  }[s.status] || "Synchro";
 }
 window.addEventListener("sync-status", () => {
   refreshSyncBadge();
   if (!syncPanel.hidden) renderSync();
 });
 
-function renderSync() {
-  const body = document.getElementById("sp-body");
-  const s = sync.getStatus();
-  if (!sync.isConfigured()) {
-    body.innerHTML = `
-      <p>Retrouve ton planning, ton budget et tes plans sur <strong>tous tes appareils</strong>,
-      via un <strong>Gist GitHub privé</strong> (gratuit, ton compte).</p>
-      <ol>
-        <li>Ouvre <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">cette page GitHub</a></li>
-        <li>Nom : <em>atelier-crafter</em> · Expiration : au choix</li>
-        <li><strong>Account permissions</strong> → <strong>Gists</strong> → <em>Read and write</em></li>
-        <li>« Generate token », copie-le, colle-le ici :</li>
-      </ol>
-      <input type="password" id="sp-token" placeholder="github_pat_… (collé par toi)" autocomplete="off">
-      <button class="btn" id="sp-connect" style="width:100%;margin-top:6px">🔗 Connecter</button>
-      <div class="sp-note">🔐 Le jeton reste <strong>dans ce navigateur uniquement</strong> et ne part que vers github.com.
-      Donne-lui <strong>seulement</strong> la permission « Gists » : il ne pourra pas toucher à tes dépôts.
-      Révocable quand tu veux depuis GitHub.</div>
-      <p class="muted" style="font-size:11px">À refaire une fois par appareil (téléphone, autre ordi).</p>`;
-    body.querySelector("#sp-connect").onclick = async () => {
-      const inp = body.querySelector("#sp-token");
-      const t = inp.value.trim();
-      if (!t) return alert("Colle d'abord ton jeton.");
-      const btn = body.querySelector("#sp-connect");
-      btn.disabled = true; btn.textContent = "⏳ Connexion…";
-      const res = await sync.connect(t);
-      inp.value = "";
-      if (!res.ok) { alert("Connexion impossible : " + res.error); renderSync(); return; }
-      if (res.created) { await sync.push(false); }
-      else { await sync.pull(true); }
-      sync.init();
-      renderSync();
-    };
-    return;
-  }
+// Écran « mot de passe » : le seul geste demandé sur un nouvel appareil.
+function viewPassword(body, err) {
   body.innerHTML = `
-    <p><strong>${ICONS[s.status]} ${{ ok: "Synchro active", busy: "Synchronisation…", error: "Erreur", conflict: "Versions divergentes" }[s.status] || "Prêt"}</strong></p>
-    <p class="muted" style="font-size:11.5px">
-      Dernier envoi : ${s.lastSync ? new Date(s.lastSync).toLocaleString("fr-FR") : "jamais"}<br>
-      Gist : <a href="https://gist.github.com/${esc(s.gistId)}" target="_blank" rel="noopener">${esc(s.gistId.slice(0, 10))}…</a> (privé)
-    </p>
+    <p>Tape ton mot de passe de synchro. <strong>Une seule fois sur cet appareil</strong> —
+    ensuite tout se met à jour tout seul, ici comme ailleurs.</p>
+    <input type="password" id="sp-pass" placeholder="mot de passe" autocomplete="current-password">
+    <button class="btn" id="sp-open" style="width:100%;margin-top:6px">🔓 Ouvrir</button>
+    ${err ? `<div class="sp-note">❌ ${esc(err)}</div>` : ""}
+    <p class="muted" style="font-size:11px;margin-top:8px">Mot de passe oublié ? Il n'est stocké nulle part et ne peut pas être retrouvé —
+    il faudrait repartir d'une sauvegarde 💾 et refaire la mise en place.</p>`;
+  const go = async () => {
+    const p = body.querySelector("#sp-pass").value;
+    if (!p) return;
+    const btn = body.querySelector("#sp-open");
+    btn.disabled = true; btn.textContent = "⏳ Ouverture…";
+    const res = await sync.openWith(p);
+    if (res.ok) { syncPanel.hidden = true; return; }
+    if (res.needSetup) { renderSync(); return; }
+    viewPassword(body, res.wrongPass ? "Mot de passe incorrect." : res.error);
+  };
+  body.querySelector("#sp-open").onclick = go;
+  body.querySelector("#sp-pass").onkeydown = e => { if (e.key === "Enter") go(); };
+  body.querySelector("#sp-pass").focus();
+}
+
+// Mise en place initiale : une seule fois pour tout le projet, pas par appareil.
+function viewSetup(body) {
+  body.innerHTML = `
+    <p><strong>Mise en place — une seule fois pour tout le projet.</strong>
+    Ensuite, sur n'importe quel appareil, il n'y aura plus qu'un mot de passe à taper.</p>
+    <p style="margin-top:8px"><strong>1. Choisis un mot de passe</strong> (mémorisable et long, ex. <em>crafter-bleu-vacances</em>) :</p>
+    <input type="password" id="sp-p1" placeholder="mot de passe" autocomplete="new-password">
+    <input type="password" id="sp-p2" placeholder="le même, pour vérifier" autocomplete="new-password">
+    <p style="margin-top:8px"><strong>2. Une clé d'écriture GitHub</strong>, à créer une fois :</p>
+    <ol>
+      <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Ouvrir la page GitHub</a></li>
+      <li>Nom : <em>atelier-crafter</em> · Expiration : <strong>No expiration</strong></li>
+      <li><strong>Account permissions</strong> → <strong>Gists</strong> → <em>Read and write</em></li>
+      <li>« Generate token », copie, colle ici :</li>
+    </ol>
+    <input type="password" id="sp-tok" placeholder="github_pat_…" autocomplete="off">
+    <button class="btn" id="sp-go" style="width:100%;margin-top:6px">✅ Terminer la mise en place</button>
+    <div class="sp-note">🔐 La clé est <strong>chiffrée avec ton mot de passe</strong> avant d'être stockée.
+    Sans le mot de passe, elle est illisible — et elle ne donne accès qu'à tes gists, jamais à tes dépôts.
+    Révocable à tout moment depuis GitHub.</div>`;
+  body.querySelector("#sp-go").onclick = async () => {
+    const p1 = body.querySelector("#sp-p1").value, p2 = body.querySelector("#sp-p2").value;
+    const tok = body.querySelector("#sp-tok").value.trim();
+    if (p1.length < 8) return alert("Mot de passe trop court : 8 caractères minimum.");
+    if (p1 !== p2) return alert("Les deux mots de passe ne correspondent pas.");
+    if (!tok) return alert("Colle la clé GitHub.");
+    const btn = body.querySelector("#sp-go");
+    btn.disabled = true; btn.textContent = "⏳ Mise en place…";
+    const res = await sync.setup(p1, tok);
+    if (!res.ok) { alert("Échec : " + res.error); renderSync(); return; }
+    toast("☁️ Synchro en place — plus rien à faire ailleurs qu'un mot de passe");
+    syncPanel.hidden = true;
+  };
+}
+
+function viewActive(body) {
+  const s = sync.getStatus();
+  body.innerHTML = `
+    <p><strong>${ICONS[s.status]} ${{ ok: "Synchro active", busy: "Synchronisation…", error: "Erreur", conflict: "Versions divergentes" }[s.status] || "Prête"}</strong></p>
+    <p class="muted" style="font-size:11.5px">Dernier échange : ${s.lastSync ? new Date(s.lastSync).toLocaleString("fr-FR") : "jamais"}</p>
     ${s.lastError ? `<div class="sp-note">⚠️ ${esc(s.lastError)}</div>` : ""}
-    <p style="font-size:11.5px">Envoi automatique 4 s après chaque modification. Récupération à l'ouverture de la page.</p>
+    <p style="font-size:11.5px">Envoi automatique 4 s après chaque modification, récupération à l'ouverture
+    et au retour sur l'onglet.</p>
     <div style="display:flex;gap:6px;margin-top:8px">
       <button class="btn small" id="sp-push">⬆️ Envoyer</button>
       <button class="btn small secondary" id="sp-pull">⬇️ Récupérer</button>
-      <button class="btn small danger" id="sp-off">Déconnecter</button>
+      <button class="btn small danger" id="sp-forget">Oublier ici</button>
     </div>
-    <div class="sp-note">Sur un autre appareil : ouvre cette même adresse et refais la connexion avec un jeton.</div>`;
+    <div class="sp-note">Sur un autre appareil : ouvre la même adresse, tape le mot de passe. C'est tout.</div>`;
   body.querySelector("#sp-push").onclick = () => sync.push(false);
   body.querySelector("#sp-pull").onclick = () => sync.pull(true);
-  body.querySelector("#sp-off").onclick = () => {
-    if (!confirm("Déconnecter la synchro sur cet appareil ?\nTes données locales et le gist en ligne sont conservés.")) return;
-    sync.disconnect();
+  body.querySelector("#sp-forget").onclick = () => {
+    if (!confirm("Oublier le mot de passe sur cet appareil ?\nTes données restent en ligne et en local.")) return;
+    sync.forget();
     renderSync();
   };
 }
 
+let setupNeeded = null; // null = pas encore vérifié
+async function renderSync() {
+  const body = document.getElementById("sp-body");
+  if (sync.isReady()) return viewActive(body);
+  if (setupNeeded === null) {
+    body.innerHTML = `<p class="muted">⏳ Vérification…</p>`;
+    setupNeeded = await sync.needsSetup();
+  }
+  setupNeeded ? viewSetup(body) : viewPassword(body);
+}
+
 sync.init();
 refreshSyncBadge();
-
+// Premier passage sur cet appareil alors que la synchro existe déjà :
+// on ouvre directement le champ mot de passe, il n'y a que ça à faire.
+if (!sync.hasPass()) {
+  sync.needsSetup().then(need => {
+    setupNeeded = need;
+    if (!need) { syncPanel.hidden = false; renderSync(); }
+  });
+}
 // ---------- export / import ----------
 document.getElementById("btn-export").onclick = exportJSON;
 document.getElementById("btn-import").onclick = () => document.getElementById("file-import").click();

@@ -23,21 +23,37 @@ http://localhost:8742. Laisse la fenêtre Terminal ouverte pendant l'utilisation
 
 ## ☁️ Synchro entre appareils
 
-Bouton **☁️** en haut à droite. Une fois connecté, tes données suivent
-automatiquement d'un appareil à l'autre (envoi 4 s après chaque modification,
-récupération à l'ouverture de la page).
+**Sur un appareil déjà ouvert une fois : rien à faire.** Tu ouvres l'adresse,
+tes données sont là, et tout ce que tu modifies part tout seul 4 secondes après.
+Ça revient aussi quand tu reviens sur l'onglet.
 
-Mise en place, **une fois par appareil** :
+**Sur un appareil neuf** : la page te demande ton **mot de passe**, une fois.
+C'est tout. Plus jamais ensuite sur cet appareil.
 
-1. Ouvre https://github.com/settings/personal-access-tokens/new
-2. Nom : `atelier-crafter` · Expiration : au choix
-3. **Account permissions** → **Gists** → *Read and write* (rien d'autre)
-4. « Generate token », copie-le, colle-le dans le panneau ☁️ de l'appli
+### Mise en place (une seule fois pour tout le projet)
 
-Tes données vont dans un **Gist GitHub privé** (gratuit, illimité).
-Le jeton reste dans le navigateur de l'appareil et ne part que vers github.com.
-Il ne peut toucher qu'à tes gists, pas à tes dépôts. Révocable à tout moment
-depuis GitHub (la synchro s'arrête, les données restent).
+La première fois seulement, le panneau ☁️ demande deux choses :
+
+1. Ton **mot de passe** (choisis-le long et mémorisable, ex. `crafter-bleu-vacances`)
+2. Une **clé d'écriture GitHub**, à créer une fois :
+   https://github.com/settings/personal-access-tokens/new
+   → Expiration : *No expiration* · **Account permissions → Gists → Read and write**
+
+Ensuite, tu n'y reviens plus jamais : les autres appareils ne demandent que
+le mot de passe.
+
+### Comment c'est protégé
+
+Tes données vivent dans un espace de stockage GitHub dont l'identifiant est
+dans le code (donc visible). Mais **tout y est chiffré** (AES-GCM, clé dérivée
+de ton mot de passe) : les données **et** la clé d'écriture. Sans le mot de
+passe, quelqu'un qui trouve l'espace ne voit que du charabia et ne peut rien
+modifier.
+
+⚠️ **Le mot de passe n'est stocké nulle part et ne peut pas être retrouvé.**
+S'il est perdu, il faut repartir d'une sauvegarde 💾 et refaire la mise en place.
+La clé GitHub ne donne accès qu'à tes gists (jamais à tes dépôts) et reste
+révocable depuis GitHub à tout moment.
 
 Si deux appareils ont été modifiés chacun de leur côté, l'appli **demande**
 avant de remplacer quoi que ce soit — jamais d'écrasement silencieux.
