@@ -1,14 +1,62 @@
 # 🚐 Atelier Crafter
 
-Appli locale tout-en-un pour l'aménagement du VW Crafter 35 L2H1 (2013).
-Fonctionne hors-ligne, dans le navigateur, aucune installation.
+Appli tout-en-un pour l'aménagement du VW Crafter 35 L2H1 (2013).
 
-## Lancer
+## 🌍 En ligne
+
+**https://naaylek.github.io/atelier-crafter/**
+
+Accessible partout, sur n'importe quel appareil. Ajoute-la à ton écran
+d'accueil sur téléphone (Partager → « Sur l'écran d'accueil »).
+
+### Publier une mise à jour
+
+Double-clique **`Mettre en ligne.command`** → en ligne ~30 s après.
+(Ou en console : `git add -A && git commit -m "..." && git push`.)
+
+## 💻 En local (sans internet)
 
 Double-clique **`Lancer Atelier Crafter.command`** → le navigateur s'ouvre sur
 http://localhost:8742. Laisse la fenêtre Terminal ouverte pendant l'utilisation.
 
 (Si macOS bloque le fichier : clic droit → Ouvrir, une seule fois.)
+
+## ☁️ Synchro entre appareils
+
+Bouton **☁️** en haut à droite. Une fois connecté, tes données suivent
+automatiquement d'un appareil à l'autre (envoi 4 s après chaque modification,
+récupération à l'ouverture de la page).
+
+Mise en place, **une fois par appareil** :
+
+1. Ouvre https://github.com/settings/personal-access-tokens/new
+2. Nom : `atelier-crafter` · Expiration : au choix
+3. **Account permissions** → **Gists** → *Read and write* (rien d'autre)
+4. « Generate token », copie-le, colle-le dans le panneau ☁️ de l'appli
+
+Tes données vont dans un **Gist GitHub privé** (gratuit, illimité).
+Le jeton reste dans le navigateur de l'appareil et ne part que vers github.com.
+Il ne peut toucher qu'à tes gists, pas à tes dépôts. Révocable à tout moment
+depuis GitHub (la synchro s'arrête, les données restent).
+
+Si deux appareils ont été modifiés chacun de leur côté, l'appli **demande**
+avant de remplacer quoi que ce soit — jamais d'écrasement silencieux.
+
+## 🔒 Infos privées
+
+Plaque d'immatriculation, prix payé et assureur sont **chiffrés** (AES-GCM)
+et masqués par défaut : `••••••`. Bouton **🔒** en haut à droite → code à
+4 chiffres pour les afficher, re-clic pour re-masquer. Le déverrouillage
+dure jusqu'au rechargement de la page.
+
+⚠️ **Honnêteté** : un code à 4 chiffres protège d'un regard par-dessus
+l'épaule, pas d'un attaquant motivé (~3 h de calcul pour tout essayer).
+Pour du solide, demande un mot de passe plus long — c'est 10 s de travail.
+
+### Changer le code
+
+Modifie `CODE` dans le script de génération, relance-le, et remplace `BLOB`
+dans `js/secret.js` par la sortie. Demande-moi, c'est immédiat.
 
 ## Les onglets
 

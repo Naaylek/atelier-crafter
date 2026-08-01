@@ -33,9 +33,14 @@
     <button id="btn-undo" title="Annuler (⌘Z)">↩️</button>
     <button id="btn-redo" title="Rétablir (⌘⇧Z)">↪️</button>
     <button id="btn-history" title="Historique des modifications">🕘</button>
+    <button id="btn-sync" title="Synchronisation entre appareils">☁️</button>
     <button id="btn-export" title="Exporter toutes les données en fichier JSON">💾 Exporter</button>
     <button id="btn-import" title="Importer un fichier JSON">📂 Importer</button>
     <input type="file" id="file-import" accept=".json" hidden>
+  </div>
+  <div id="sync-panel" hidden>
+    <div class="hp-head"><strong>☁️ Synchro entre appareils</strong><button id="sp-close">✕</button></div>
+    <div id="sp-body"></div>
   </div>
   <div id="history-panel" hidden>
     <div class="hp-head"><strong>🕘 Historique</strong><button id="hp-close">✕</button></div>

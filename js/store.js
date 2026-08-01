@@ -117,6 +117,14 @@ function persist() {
   catch (e) { console.error("save failed", e); toast("⚠️ Sauvegarde impossible : " + e.message); }
 }
 
+// Remplace tout l'état (utilisé par la synchro) sans perdre l'historique undo.
+export function setState(newState) {
+  state = migrate(newState);
+  persist();
+  pushHistory("Données récupérées en ligne");
+  window.dispatchEvent(new CustomEvent("history-restored"));
+}
+
 export function resetAll() {
   if (!confirm("Tout réinitialiser aux valeurs par défaut ? Tes données actuelles seront perdues (exporte-les avant si besoin).")) return;
   state = freshState();
