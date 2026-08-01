@@ -14,6 +14,22 @@ d'accueil sur téléphone (Partager → « Sur l'écran d'accueil »).
 Double-clique **`Mettre en ligne.command`** → en ligne ~30 s après.
 (Ou en console : `git add -A && git commit -m "..." && git push`.)
 
+## 📱 Téléphone & tablette
+
+L'affichage s'adapte tout seul en dessous de 900 px de large
+(l'affichage sur ordinateur, lui, ne change pas d'un pixel) :
+
+- barre du haut compacte, onglets qui défilent du doigt
+- le panneau de gauche devient un **tiroir** : bouton **☰ Réglages** en bas
+  à gauche pour l'ouvrir, il se referme tout seul quand tu choisis un meuble
+- **van 3D** : un doigt pour tourner, deux pour zoomer/déplacer ;
+  la caméra se recadre automatiquement en portrait
+- **schémas élec/eau** : pincement à deux doigts pour zoomer
+- **tableaux** planning et budget : ils défilent horizontalement
+
+Ajoute le site à ton écran d'accueil (Partager → « Sur l'écran d'accueil ») :
+il s'ouvre alors comme une vraie appli, sans barre de navigateur.
+
 ## 💻 En local (sans internet)
 
 Double-clique **`Lancer Atelier Crafter.command`** → le navigateur s'ouvre sur
