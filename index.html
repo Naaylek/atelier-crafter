@@ -4,15 +4,32 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Atelier Crafter — VW Crafter L2H1 2013</title>
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=1785604927">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚐</text></svg>">
+<!-- BUILD marque une version sur chaque module : le navigateur reprend toujours
+     la dernière version après publication, sans attendre l'expiration du cache.
+     « Mettre en ligne.command » met à jour tous les ?v= automatiquement. -->
 <script type="importmap">
 {
   "imports": {
     "three": "./vendor/three.module.min.js",
     "three/addons/controls/OrbitControls.js": "./vendor/OrbitControls.js",
     "three/addons/controls/TransformControls.js": "./vendor/TransformControls.js",
-    "three/addons/loaders/GLTFLoader.js": "./vendor/GLTFLoader.js"
+    "three/addons/loaders/GLTFLoader.js": "./vendor/GLTFLoader.js",
+    "./js/app.js":      "./js/app.js?v=1785604927",
+    "./js/store.js":    "./js/store.js?v=1785604927",
+    "./js/data.js":     "./js/data.js?v=1785604927",
+    "./js/dash.js":     "./js/dash.js?v=1785604927",
+    "./js/planning.js": "./js/planning.js?v=1785604927",
+    "./js/budget.js":   "./js/budget.js?v=1785604927",
+    "./js/elec.js":     "./js/elec.js?v=1785604927",
+    "./js/eau.js":      "./js/eau.js?v=1785604927",
+    "./js/diagram.js":  "./js/diagram.js?v=1785604927",
+    "./js/vanplan.js":  "./js/vanplan.js?v=1785604927",
+    "./js/van3d.js":    "./js/van3d.js?v=1785604927",
+    "./js/ui.js":       "./js/ui.js?v=1785604927",
+    "./js/secret.js":   "./js/secret.js?v=1785604927",
+    "./js/sync.js":     "./js/sync.js?v=1785604927"
   }
 }
 </script>
@@ -58,6 +75,6 @@
 </main>
 
 <div id="toast"></div>
-<script type="module" src="js/app.js?v=3"></script>
+<script type="module" src="js/app.js?v=1785604927"></script>
 </body>
 </html>
