@@ -1,0 +1,197 @@
+// Plan 2D du van vu de dessus (partagé élec / eau).
+// Les composants du schéma se placent à leur position réelle dans le van ;
+// les liaisons sont routées à angle droit et leur longueur est calculée.
+// Coordonnées van : vz = longueur (mm, - arrière … + cabine), vx = largeur (mm).
+// À l'écran : van horizontal, arrière à gauche, cabine à droite.
+import { state } from "./store.js";
+import { esc } from "./planning.js";
+
+const CAB_LEN = 1900; // longueur cabine dessinée (indicatif)
+const MARGIN = 700;   // marge autour du van (composants hors caisson autorisés)
+
+export class VanPlan {
+  /**
+   * opts: {
+   *   nodes: () => [...], links: () => [...],
+   *   nodeIcon(n), nodeTitle(n), nodeColor(n),
+   *   linkColor(l), linkLabel(l),
+   *   onChange(), onSelect(kind, obj), onAutoLen(link, meters)
+   * }
+   */
+  constructor(container, opts) {
+    this.o = opts;
+    this.el = container;
+    this.sel = null;
+    container.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block"></svg>`;
+    this.svg = container.querySelector("svg");
+    this.ensurePositions();
+    new ResizeObserver(() => this.render()).observe(container);
+    this.render();
+  }
+
+  // place les composants jamais positionnés sur une grille au centre
+  ensurePositions() {
+    const V = state.van;
+    let i = 0;
+    this.o.nodes().forEach(n => {
+      if (n.vx === undefined || n.vx === null) {
+        n.vx = -V.W / 2 + 300 + (i % 4) * 400;
+        n.vz = -V.L / 2 + 400 + Math.floor(i / 4) * 500;
+        i++;
+      }
+    });
+    if (i) this.updateAutoLens(false);
+  }
+
+  // mm van -> px écran
+  sx(vz) { return this.pad + (vz + state.van.L / 2 + MARGIN) * this.k; }
+  sy(vx) { return this.pad + (vx + state.van.W / 2 + MARGIN) * this.k; }
+  // px écran -> mm van
+  toVan(ev) {
+    const r = this.svg.getBoundingClientRect();
+    return {
+      vz: (ev.clientX - r.left - this.pad) / this.k - state.van.L / 2 - MARGIN,
+      vx: (ev.clientY - r.top - this.pad) / this.k - state.van.W / 2 - MARGIN,
+    };
+  }
+
+  updateAutoLens(notify = true) {
+    if (!this.o.onAutoLen) return;
+    const byId = Object.fromEntries(this.o.nodes().map(n => [n.id, n]));
+    this.o.links().forEach(l => {
+      const a = byId[l.a], b = byId[l.b];
+      if (!a || !b) return;
+      const mm = Math.abs(a.vz - b.vz) + Math.abs(a.vx - b.vx);
+      const m = Math.max(0.5, Math.round((mm / 1000 + 0.3) * 10) / 10); // + 30 cm de mou
+      this.o.onAutoLen(l, m, notify);
+    });
+  }
+
+  select(sel) {
+    this.sel = sel;
+    this.render();
+    if (this.o.onSelect) {
+      if (!sel) this.o.onSelect(null, null);
+      else if (sel.kind === "node") this.o.onSelect("node", this.o.nodes().find(n => n.id === sel.id));
+      else this.o.onSelect("edge", this.o.links().find(l => l.id === sel.id));
+    }
+  }
+
+  render() {
+    const V = state.van;
+    const w = this.el.clientWidth || 900, h = this.el.clientHeight || 500;
+    this.pad = 14;
+    const totW = V.L + CAB_LEN + 2 * MARGIN, totH = V.W + 2 * MARGIN;
+    this.k = Math.min((w - 2 * this.pad) / totW, (h - 2 * this.pad) / totH);
+    const k = this.k;
+    const nodes = this.o.nodes(), links = this.o.links();
+    const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+
+    const X = vz => this.sx(vz), Y = vx => this.sy(vx);
+    const rearX = X(-V.L / 2), frontX = X(V.L / 2), topY = Y(-V.W / 2), botY = Y(V.W / 2);
+    const archZ0 = -V.L / 2 + V.rearToArch;
+
+    let svg = `
+      <!-- caisson -->
+      <rect x="${rearX}" y="${topY}" width="${V.L * k}" height="${V.W * k}" fill="#faf7f1" stroke="#8a8175" stroke-width="2" rx="6"/>
+      <!-- cabine -->
+      <path d="M${frontX},${topY} h${CAB_LEN * 0.55 * k} q${CAB_LEN * 0.45 * k},${V.W * 0.12 * k} ${CAB_LEN * 0.45 * k},${V.W * 0.5 * k} q0,${V.W * 0.38 * k} -${CAB_LEN * 0.45 * k},${V.W * 0.5 * k} h-${CAB_LEN * 0.55 * k} z"
+            fill="#efece4" stroke="#b7ac9c" stroke-width="1.5"/>
+      <text x="${frontX + CAB_LEN * 0.45 * k}" y="${Y(0) + 4}" font-size="11" fill="#8a8175" text-anchor="middle">CABINE</text>
+      <text x="${rearX - 6}" y="${Y(0) + 4}" font-size="11" fill="#8a8175" text-anchor="end" transform="rotate(-90 ${rearX - 6} ${Y(0)})">PORTES ARRIÈRE</text>
+      <!-- passages de roues -->
+      <rect x="${X(archZ0)}" y="${topY}" width="${V.archL * k}" height="${V.archW * k}" fill="#d5d0c6" stroke="#8a8175" rx="4"/>
+      <rect x="${X(archZ0)}" y="${botY - V.archW * k}" width="${V.archL * k}" height="${V.archW * k}" fill="#d5d0c6" stroke="#8a8175" rx="4"/>
+      <!-- porte coulissante (droite = bas du plan) -->
+      <rect x="${X(V.L / 2 - 1325)}" y="${botY - 3}" width="${1250 * k}" height="6" fill="#4c9a52" rx="3"/>
+      <text x="${X(V.L / 2 - 700)}" y="${botY + 13}" font-size="9" fill="#4c9a52" text-anchor="middle">porte coulissante</text>
+      <!-- cotes -->
+      <text x="${X(0)}" y="${topY - 6}" font-size="10" fill="#8a8175" text-anchor="middle">${V.L} mm</text>
+      <text x="${rearX + (V.rearToArch / 2) * k}" y="${topY - 6}" font-size="9" fill="#4d94cc" text-anchor="middle">${V.rearToArch}</text>`;
+
+    // liaisons (angle droit : vertical puis horizontal)
+    links.forEach(l => {
+      const a = byId[l.a], b = byId[l.b];
+      if (!a || !b) return;
+      const ax = X(a.vz), ay = Y(a.vx), bx = X(b.vz), by = Y(b.vx);
+      const selc = this.sel?.kind === "edge" && this.sel.id === l.id;
+      const col = this.o.linkColor ? this.o.linkColor(l) : "#cc3333";
+      const d = `M${ax},${ay} L${ax},${by} L${bx},${by}`;
+      svg += `<g data-link="${l.id}" style="cursor:pointer">
+        <path d="${d}" fill="none" stroke="${col}" stroke-width="${selc ? 4.5 : 2.5}" stroke-linejoin="round" opacity="0.9"/>
+        <path d="${d}" fill="none" stroke="transparent" stroke-width="12"/>
+        <text x="${(ax + bx) / 2}" y="${by - 5}" font-size="9.5" fill="#555" text-anchor="middle" style="pointer-events:none">${esc(this.o.linkLabel ? this.o.linkLabel(l) : "")}</text>
+      </g>`;
+    });
+
+    // composants
+    nodes.forEach(n => {
+      const x = X(n.vz), y = Y(n.vx);
+      const selc = this.sel?.kind === "node" && this.sel.id === n.id;
+      const col = this.o.nodeColor ? this.o.nodeColor(n) : "#c96f2f";
+      svg += `<g data-node="${n.id}" style="cursor:grab">
+        <circle cx="${x}" cy="${y}" r="17" fill="#fff" stroke="${selc ? "#c96f2f" : col}" stroke-width="${selc ? 3 : 1.8}"/>
+        <text x="${x}" y="${y + 5.5}" font-size="15" text-anchor="middle" style="pointer-events:none">${this.o.nodeIcon(n)}</text>
+        <text x="${x}" y="${y + 30}" font-size="9.5" font-weight="600" fill="#2b2620" text-anchor="middle" style="pointer-events:none">${esc(clip(this.o.nodeTitle(n), 18))}</text>
+      </g>`;
+    });
+
+    this.svg.innerHTML = svg;
+
+    // interactions
+    this.svg.querySelectorAll("[data-link]").forEach(g => {
+      g.addEventListener("pointerdown", ev => { ev.stopPropagation(); this.select({ kind: "edge", id: g.dataset.link }); });
+    });
+    this.svg.querySelectorAll("[data-node]").forEach(g => {
+      g.addEventListener("pointerdown", ev => {
+        ev.stopPropagation();
+        const n = nodes.find(x => x.id === g.dataset.node);
+        this.select({ kind: "node", id: n.id });
+        const start = this.toVan(ev);
+        const ox = n.vx, oz = n.vz;
+        const move = mv => {
+          const p = this.toVan(mv);
+          n.vz = Math.round((oz + p.vz - start.vz) / 10) * 10;
+          n.vx = Math.round((ox + p.vx - start.vx) / 10) * 10;
+          // borne : caisson + marge
+          n.vz = Math.max(-state.van.L / 2 - MARGIN + 100, Math.min(state.van.L / 2 + CAB_LEN, n.vz));
+          n.vx = Math.max(-state.van.W / 2 - MARGIN + 100, Math.min(state.van.W / 2 + MARGIN - 100, n.vx));
+          this.render();
+        };
+        const up = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          this.updateAutoLens();
+          this.o.onChange();
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      });
+    });
+    this.svg.addEventListener("pointerdown", () => this.select(null), { once: true });
+  }
+}
+
+// export PNG d'un SVG
+export function svgToPNG(svgEl, filename) {
+  const xml = new XMLSerializer().serializeToString(svgEl);
+  const img = new Image();
+  const r = svgEl.getBoundingClientRect();
+  img.onload = () => {
+    const c = document.createElement("canvas");
+    c.width = r.width * 2; c.height = r.height * 2;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    const a = document.createElement("a");
+    a.href = c.toDataURL("image/png");
+    a.download = filename;
+    a.click();
+  };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${r.width}" height="${r.height}">${xml.replace(/<svg[^>]*>|<\/svg>/g, "")}</svg>`
+  );
+}
+
+const clip = (s, n) => s.length > n ? s.slice(0, n - 1) + "…" : s;
