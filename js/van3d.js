@@ -245,16 +245,48 @@ function initThree() {
   resize();
 }
 
+// Position de caméra de référence (écran large).
+const CAM_HOME = new THREE.Vector3(3800, 3200, 4800);
+const CAM_TARGET = new THREE.Vector3(0, 700, 0);
+const PORTRAIT_MAX = 1.2;  // en dessous : écran étroit (téléphone à la verticale)
+let wasPortrait = null;
+
+// Sur écran étroit, recule la caméra pour que tout le van tienne à l'écran.
+// Sur écran large, ne touche à rien : le cadrage d'origine est conservé.
+function frameForAspect(a) {
+  const portrait = a < PORTRAIT_MAX;
+  if (!portrait) {
+    if (wasPortrait) { // retour au format large : on remet le cadrage d'origine
+      camPersp.position.copy(CAM_HOME);
+      controls.target.copy(CAM_TARGET);
+      controls.update();
+    }
+    return;
+  }
+  const radius = 2300; // le caisson tient dans cette sphère
+  const vHalf = THREE.MathUtils.degToRad(camPersp.fov / 2);
+  const hHalf = Math.atan(Math.tan(vHalf) * a);
+  const dist = radius / Math.sin(Math.min(vHalf, hHalf));
+  camPersp.position.copy(CAM_HOME).normalize().multiplyScalar(dist).add(CAM_TARGET);
+  controls.target.copy(CAM_TARGET);
+  controls.update();
+}
+
 function resize() {
   if (!renderer) return;
   const w = canvasEl.clientWidth, h = canvasEl.clientHeight;
   if (!w || !h) return;
   renderer.setSize(w, h);
-  camPersp.aspect = w / h;
+  const a = w / h;
+  camPersp.aspect = a;
   camPersp.updateProjectionMatrix();
-  const a = w / h, d = 2400;
+  // vues orthographiques : élargir le cadre sur écran étroit, sinon inchangé
+  const d = a < PORTRAIT_MAX ? Math.max(2400, 2100 / a) : 2400;
   camOrtho.left = -d * a; camOrtho.right = d * a; camOrtho.top = d; camOrtho.bottom = -d;
   camOrtho.updateProjectionMatrix();
+  // ne recadre qu'au changement d'orientation, pour ne pas contrarier l'utilisateur
+  const portrait = a < PORTRAIT_MAX;
+  if (portrait !== wasPortrait) { frameForAspect(a); wasPortrait = portrait; }
 }
 
 // caisson procédural aux dimensions exactes

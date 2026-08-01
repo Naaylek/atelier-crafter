@@ -44,7 +44,10 @@ export class Diagram {
     const minY = Math.min(...nodes.map(n => n.y)) - 40;
     const maxY = Math.max(...nodes.map(n => n.y)) + NH + 40;
     const cw = container.clientWidth || 1000, ch = container.clientHeight || 600;
-    const k = Math.min(1.4, Math.max(0.3, Math.min(cw / (maxX - minX), ch / (maxY - minY))));
+    let k = Math.min(cw / (maxX - minX), ch / (maxY - minY));
+    // sur écran étroit, on garde une taille lisible quitte à faire glisser
+    const kMin = cw < 700 ? 0.55 : 0.3;
+    k = Math.min(1.4, Math.max(kMin, k));
     this.view.k = k;
     this.view.x = (cw - (maxX - minX) * k) / 2 - minX * k;
     this.view.y = (ch - (maxY - minY) * k) / 2 - minY * k;
@@ -60,20 +63,58 @@ export class Diagram {
 
   bindPanZoom() {
     let pan = null;
+    const touches = new Map();   // doigts posés, pour le pincement
+    let pinch = null;
+
+    const dist = () => {
+      const [a, b] = [...touches.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+    const mid = () => {
+      const [a, b] = [...touches.values()];
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    };
+
     this.svg.addEventListener("pointerdown", ev => {
+      touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (touches.size === 2) {   // deux doigts : on pince, pas on déplace
+        pan = null;
+        pinch = { d: dist(), k: this.view.k, m: mid(), vx: this.view.x, vy: this.view.y };
+        return;
+      }
       if (ev.target === this.svg || ev.target.closest(".viewport") === null || ev.target.tagName === "svg") {
         pan = { x: ev.clientX, y: ev.clientY, vx: this.view.x, vy: this.view.y };
         this.select(null);
       }
     });
     this.svg.addEventListener("pointermove", ev => {
+      if (touches.has(ev.pointerId)) touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (pinch && touches.size === 2) {
+        const r = this.svg.getBoundingClientRect();
+        const k = Math.min(2.5, Math.max(0.2, pinch.k * (dist() / pinch.d)));
+        // garde le point entre les doigts immobile pendant le zoom
+        const wx = (pinch.m.x - r.left - pinch.vx) / pinch.k;
+        const wy = (pinch.m.y - r.top - pinch.vy) / pinch.k;
+        const m = mid();
+        this.view.k = k;
+        this.view.x = m.x - r.left - wx * k;
+        this.view.y = m.y - r.top - wy * k;
+        this.applyView();
+        return;
+      }
       if (pan) {
         this.view.x = pan.vx + ev.clientX - pan.x;
         this.view.y = pan.vy + ev.clientY - pan.y;
         this.applyView();
       }
     });
-    window.addEventListener("pointerup", () => pan = null);
+    const release = ev => {
+      touches.delete(ev.pointerId);
+      if (touches.size < 2) pinch = null;
+      if (touches.size === 0) pan = null;
+    };
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
     this.svg.addEventListener("wheel", ev => {
       ev.preventDefault();
       const w = this.toWorld(ev);

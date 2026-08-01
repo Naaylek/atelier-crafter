@@ -202,3 +202,104 @@ legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
 @media print {
   #topbar, .editor-side, #van-side, .toolrow { display: none !important; }
 }
+
+/* ============================================================
+   TÉLÉPHONE & TABLETTE (≤ 900 px)
+   Tout est enfermé ici : l'affichage sur ordinateur ne change pas.
+   ============================================================ */
+
+/* Éléments du tiroir : invisibles sur ordinateur */
+.drawer-toggle, .drawer-backdrop { display: none; }
+
+@media (max-width: 900px) {
+
+  /* ---------- barre du haut compacte ---------- */
+  #topbar { gap: 8px; padding: 6px 10px; row-gap: 6px; }
+  #logo { font-size: 15px; }
+  #logo .sub { display: none; }                 /* modèle + plaque : inutile sur petit écran */
+  #tabs {
+    order: 3; width: 100%; flex: 1 0 100%;
+    overflow-x: auto; flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  #tabs::-webkit-scrollbar { display: none; }
+  #tabs button { white-space: nowrap; padding: 6px 10px; }
+  #topactions { margin-left: auto; display: flex; gap: 2px; }
+  #topactions button { padding: 6px 8px; font-size: 15px; }
+  /* boutons Exporter / Importer réduits à leur icône (sélecteur assez fort
+     pour battre « #topactions button » juste au-dessus) */
+  #topactions #btn-export, #topactions #btn-import { font-size: 0; }
+  #topactions #btn-export::after { content: "💾"; font-size: 15px; }
+  #topactions #btn-import::after { content: "📂"; font-size: 15px; }
+
+  .tab { padding: 12px 10px; }
+  #tab-van.active, #tab-elec.active, #tab-eau.active { height: calc(100vh - 96px); }
+  h2 { font-size: 17px; }
+
+  /* ---------- panneaux latéraux en tiroir ---------- */
+  .editor-wrap, #van-wrap { position: relative; }
+  .side-drawer {
+    position: absolute; top: 0; bottom: 0; left: 0; z-index: 40;
+    width: 86% !important; min-width: 0 !important; max-width: 420px;
+    transform: translateX(-102%); transition: transform .22s ease;
+    box-shadow: 4px 0 22px rgba(0,0,0,.22);
+  }
+  .side-drawer.open { transform: translateX(0); }
+  .side-resizer { display: none; }
+
+  .drawer-toggle {
+    display: block; position: absolute; left: 8px; bottom: 8px; z-index: 42;
+    background: var(--accent); color: #fff; border: none; border-radius: 20px;
+    padding: 9px 16px; font-size: 13px; font-weight: 600;
+    box-shadow: 0 3px 12px rgba(0,0,0,.28); cursor: pointer;
+  }
+  .drawer-backdrop {
+    display: block; position: absolute; inset: 0; z-index: 39;
+    background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .22s;
+  }
+  .drawer-backdrop.show { opacity: 1; pointer-events: auto; }
+
+  /* ---------- van 3D ---------- */
+  #van-canvas canvas { touch-action: none; }    /* le doigt fait tourner la vue, pas défiler la page */
+  #van-views {
+    top: 6px; left: 6px; right: 6px; transform: none;
+    justify-content: flex-start; flex-wrap: nowrap;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    padding: 4px; gap: 2px; scrollbar-width: none;
+  }
+  #van-views::-webkit-scrollbar { display: none; }
+  #van-views button { white-space: nowrap; padding: 7px 9px; font-size: 12px; }
+  #van-hint { display: none; }                  /* raccourcis clavier : sans objet au doigt */
+
+  /* ---------- schémas élec / eau ---------- */
+  .editor-canvas svg { touch-action: none; }
+
+  /* ---------- tableaux : défilement horizontal ---------- */
+  .phase-body, .card > div[style*="overflow"], .tab > div[style*="overflow"] { -webkit-overflow-scrolling: touch; }
+  table.grid { min-width: 660px; }              /* jamais de colonnes écrasées : on fait glisser */
+  table.grid th, table.grid td { padding: 5px 6px; }
+  .phase-head { flex-wrap: wrap; gap: 8px; }
+  .phase-head .progress { order: 5; flex: 1 0 100%; max-width: none; }
+
+  /* ---------- fiches & formulaires ---------- */
+  .cards { grid-template-columns: 1fr; gap: 10px; }
+  .stat .big { font-size: 22px; }
+  .props label { min-width: 76px; font-size: 11.5px; }
+  input, select { font-size: 16px; }            /* ≥16px : évite le zoom automatique sur iPhone */
+  input[type="number"] { width: 72px; }
+
+  /* ---------- panneaux flottants ---------- */
+  #history-panel, #sync-panel {
+    left: 8px; right: 8px; width: auto; top: 92px; max-height: 72vh;
+  }
+
+  .toolrow { gap: 6px; }
+  .toolrow > label { font-size: 12px; }
+}
+
+/* Téléphones étroits */
+@media (max-width: 420px) {
+  #logo strong { font-size: 14px; }
+  #topactions button { padding: 5px 6px; }
+  .drawer-toggle { padding: 8px 13px; font-size: 12px; }
+}
