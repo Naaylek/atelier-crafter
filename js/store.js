@@ -1,5 +1,5 @@
 // Store central : état + persistance localStorage + export/import + historique undo/redo.
-import { VAN, DEFAULT_TASKS, DEFAULT_BUDGET, DEFAULT_ELEC, DEFAULT_EAU, VS3D_LAYOUTS, PHASES, BUDGET_CATS } from "./data.js";
+import { VAN, DEFAULT_TASKS, DEFAULT_BUDGET, DEFAULT_ELEC, DEFAULT_EAU, VS3D_LAYOUTS, PHASES, BUDGET_CATS, DATA_REV } from "./data.js";
 
 const KEY = "atelier-crafter-v1";
 let _uid = Date.now() % 100000;
@@ -26,6 +26,7 @@ function freshState() {
   layouts.push({ id: "layout-custom", label: "Mon plan définitif", items: [], measures: [] });
   return {
     version: 1,
+    rev: DATA_REV,
     van: { ...VAN, shell: { ...SHELL_DEFAULT } },
     planning: { phases: PHASES.slice(), tasks: JSON.parse(JSON.stringify(DEFAULT_TASKS)) },
     budget: { max: 5000, cats: BUDGET_CATS.slice(), items: JSON.parse(JSON.stringify(DEFAULT_BUDGET)) },
@@ -47,7 +48,73 @@ function migrate(s) {
   s.layouts.forEach(l => { if (!l.measures) l.measures = []; });
   // anciens décalages carrosserie par défaut → valeur mesurée sur les essieux
   if (s.van.shell && (s.van.shell.z === 180 || s.van.shell.z === 1100)) s.van.shell.z = SHELL_DEFAULT.z;
+  if (!(s.rev >= 2)) migrateRev2(s);
   return s;
+}
+
+// rev 2 — refonte électricité : batterie 300Ah, onduleur 2200W, chauffage
+// Webasto, chauffe-eau 12V, plaque induction à la place du gaz.
+// Tout ce qui est déjà coché « acheté » est conservé tel quel.
+const REV2_DROP = [
+  "Batterie LiFePO4 100Ah 12V", "Panneau solaire rigide 200W",
+  "Régulateur MPPT Victron 100/30", "Chargeur B2B 12V 30A (Renogy/Victron)",
+  "Convertisseur pur sinus 1000W", "Boîte 12 fusibles + bornier masse",
+  "Câble 16mm² rouge/noir (au mètre)", "Câble 2.5/4/6mm² + gaines",
+  "Fusibles, porte-fusibles, cosses, manchons", "Coupe-circuit + shunt/moniteur batterie",
+  "Passe-toit étanche + Sikaflex 522", "Spots LED 12V ×6 + variateur",
+  "Prises USB-C / allume-cigare ×3", "Interrupteurs 12V",
+  "Plaque gaz 2 feux + bouteille 2.75kg + détendeur + lyre",
+  "Vanne + caisson gaz ventilé (VASP)",
+  "Frigo compression 12V (Alpicool CF35 ou tiroir)",
+];
+// anciens libellés de tâches → nouveaux (seulement si la tâche est encore à faire)
+const REV2_TASKS = {
+  "Installer batterie auxiliaire + coupe-circuit": "Installer batterie 300Ah + coupe-circuit 300 A + SmartShunt",
+  "Câbler régulateur MPPT → batterie (fusibles)": "Câbler régulateur MPPT → batterie (10 mm², fusible 50 A)",
+  "Poser boîte à fusibles 12V + bornier de masse": "Poser boîte à fusibles 12V + borniers + / −",
+  "Câbler convertisseur 230V + prise": "Câbler onduleur (95 mm² + fusible ANL 250 A au ras du +)",
+  "Installer gaz : bouteille, détendeur, vanne, test savon": "Poser plaque induction + son circuit 230V",
+  "Monter dossier VASP (plans, attestation gaz/élec)": "Monter dossier VASP (plans, attestation élec)",
+};
+
+function migrateRev2(s) {
+  const B = s.budget;
+  // "Eau & gaz" n'a plus de gaz
+  if (B.cats.includes("Eau & gaz")) {
+    B.cats = B.cats.map(c => (c === "Eau & gaz" ? "Eau" : c));
+    B.items.forEach(it => { if (it.cat === "Eau & gaz") it.cat = "Eau"; });
+  }
+  if (!B.cats.includes("Chauffage")) {
+    const at = B.cats.indexOf("Électricité");
+    B.cats.splice(at >= 0 ? at + 1 : B.cats.length, 0, "Chauffage");
+  }
+  // on ne jette que les lignes jamais achetées
+  B.items = B.items.filter(it => !(REV2_DROP.includes(it.name) && it.status !== "done"));
+  const have = new Set(B.items.map(it => it.name));
+  DEFAULT_BUDGET
+    .filter(b => ["Électricité", "Chauffage", "Eau", "Cuisine"].includes(b.cat) && !have.has(b.name))
+    .forEach(b => B.items.push({ ...JSON.parse(JSON.stringify(b)), id: uid() }));
+
+  // schéma élec entièrement remplacé (il était pré-rempli par défaut)
+  s.elec = JSON.parse(JSON.stringify(DEFAULT_ELEC));
+
+  // planning : les quelques lignes devenues fausses
+  const P = s.planning;
+  const iGaz = P.phases.findIndex(p => p === "5 · Eau & gaz");
+  if (iGaz >= 0) P.phases[iGaz] = "5 · Eau & chauffage";
+  P.tasks.forEach(t => {
+    if (t.status !== "done" && REV2_TASKS[t.name]) t.name = REV2_TASKS[t.name];
+  });
+  const names = new Set(P.tasks.map(t => t.name));
+  DEFAULT_TASKS
+    .filter(t => !names.has(t.name) && [
+      "Poser différentiel 30 mA + prise 230V intérieure",
+      "Installer chauffe-eau 12V Elgena + câble 6 mm² / fusible 25 A",
+      "Installer chauffage Webasto : piquage réservoir, échappement, silencieux",
+    ].includes(t.name))
+    .forEach(t => P.tasks.push({ ...JSON.parse(JSON.stringify(t)), id: uid() }));
+
+  s.rev = 2;
 }
 
 export let state = load();

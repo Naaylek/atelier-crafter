@@ -1,6 +1,6 @@
 // Onglet Électricité : schéma 12V/230V + plan 2D du van + calculs P, U, I, sections, fusibles.
 import { state, save, uid, fmt } from "./store.js";
-import { ELEC_LIB, SECTIONS, FUSES } from "./data.js";
+import { ELEC_LIB, SECTIONS, FUSES, AMPACITY } from "./data.js";
 import { Diagram } from "./diagram.js";
 import { VanPlan, svgToPNG } from "./vanplan.js";
 import { esc } from "./planning.js";
@@ -16,6 +16,8 @@ let viewPlan = false;
 const lib = t => ELEC_LIB.find(l => l.type === t) || {};
 const spec = n => ({ ...lib(n.type), ...n }); // valeurs du nœud écrasent la bibliothèque
 const roleOf = n => n.role || lib(n.type).role || "load";
+// alimenté en 230 V (derrière l'onduleur) ?
+const is230 = n => { const s = spec(n); return s.v230 === true || s.type === "load230"; };
 
 // ---------- calculs réseau ----------
 function computeWires() {
@@ -41,12 +43,18 @@ function computeWires() {
   }
 
   const wireU = w => {
+    if (w.Uw) return +w.Uw;                       // tension forcée (ex. chaîne solaire en série)
     const a = spec(byId[w.a]), b = spec(byId[w.b]);
-    if (a.type === "load230" || b.type === "load230") return 230;
+    if (is230(byId[w.a]) || is230(byId[w.b])) return 230;
     if (a.type === "panneau" || b.type === "panneau")
       return a.type === "panneau" ? (a.U || 18) : (b.U || 18);
     return E.params.U;
   };
+
+  // Le BMS de la batterie plafonne physiquement tout le 12 V : rien ne peut
+  // traverser un câble au-delà de ce que la batterie sait débiter.
+  const batNode = bat ? spec(bat) : null;
+  const bmsMax = batNode && batNode.bms > 0 ? +batNode.bms : null;
 
   const memo = {};
   const neighbors = nid => adj[nid].map(w => ({ w, n: byId[w.a === nid ? w.b : w.a] }));
@@ -61,14 +69,26 @@ function computeWires() {
     const U = E.params.U;
     let I = 0;
     if (role === "load") {
-      I = s.type === "load230" ? (s.P || 0) / 230 : (s.P || 0) / U;
+      I = is230(byId[nodeId]) ? (s.P || 0) / 230 : (s.P || 0) / U;
     } else if (s.type === "convertisseur") {
-      const loads = neighbors(nodeId).filter(x => spec(x.n).type === "load230");
+      const loads = neighbors(nodeId).filter(x => is230(x.n));
       const P = loads.length ? loads.reduce((t, x) => t + (spec(x.n).P || 0), 0) : (s.P || 0);
       I = P / (U * (s.eff || 0.85));
     } else if (s.type === "mppt") {
-      const panels = neighbors(nodeId).filter(x => spec(x.n).type === "panneau");
-      const P = panels.reduce((t, x) => t + (spec(x.n).P || 0), 0);
+      // toute la chaîne solaire, panneaux en série compris (le MPPT ne « voit »
+      // que le dernier panneau de la chaîne, mais reçoit la puissance des deux)
+      const seenP = new Set();
+      const stack = neighbors(nodeId).filter(x => spec(x.n).type === "panneau").map(x => x.n);
+      let P = 0;
+      while (stack.length) {
+        const nn = stack.pop();
+        if (seenP.has(nn.id)) continue;
+        seenP.add(nn.id);
+        P += spec(nn).P || 0;
+        neighbors(nn.id).forEach(x => {
+          if (spec(x.n).type === "panneau" && !seenP.has(x.n.id)) stack.push(x.n);
+        });
+      }
       I = P / U;
     } else if (s.type === "panneau") {
       I = (s.P || 0) / (s.U || 18);
@@ -91,28 +111,66 @@ function computeWires() {
   }
 
   return wires.map(w => {
-    if (!byId[w.a] || !byId[w.b]) return { w, I: 0, U: 12, S: 0, Snorm: null, fuse: null };
+    if (!byId[w.a] || !byId[w.b])
+      return { w, I: 0, U: 12, S: 0, Snorm: null, fuse: null, limit: "", capped: false };
     const da = dist[w.a] ?? 99, db = dist[w.b] ?? 99;
     let far = da >= db ? w.a : w.b;
     if (da === 99 && db === 99) far = roleOf(byId[w.a]) === "source" ? w.b : w.a;
-    const I = branchI(far, w, new Set([w.a === far ? w.b : w.a]));
+
+    let I = branchI(far, w, new Set([w.a === far ? w.b : w.a]));
     const U = wireU(w);
+
+    // plafond BMS : ne s'applique qu'au réseau principal 12 V (ni la chaîne
+    // solaire ni le 230 V ne transitent par la batterie à cette tension-là)
+    let capped = false;
+    if (bmsMax && U === E.params.U && I > bmsMax) { I = bmsMax; capped = true; }
+
     const dU = (E.params.dropPct / 100) * U;
     const L = +w.len || 1;
+
+    // 1. chute de tension  → S = 2·ρ·L·I / ΔU
     const S = dU > 0 ? (2 * RHO * L * I) / dU : 0;
-    const Snorm = SECTIONS.find(s => s >= S) || null;
-    const fuse = U > 48 ? null : (FUSES.find(f => f >= I * 1.25) || null);
-    return { w, I, U, S, Snorm, fuse };
+    // 2. mini normatif : 2,5 mm² en 230 V, 1,5 mm² en 12 V (vibrations)
+    const minS = U > 48 ? 2.5 : SECTIONS[0];
+    const sDrop = SECTIONS.find(s => s >= Math.max(S, minS)) || null;
+    // 3. échauffement : la section doit encaisser le courant en continu
+    const sTherm = SECTIONS.find(s => AMPACITY[s] >= I) || null;
+
+    let Snorm = SECTIONS.find(s => s >= Math.max(S, minS) && AMPACITY[s] >= I) || null;
+    let limit = sTherm && sDrop && sTherm > sDrop ? "échauffement"
+      : S > minS ? "chute de tension" : "section mini";
+
+    // 4. fusible : calibré sur le courant d'appel de l'appareil s'il en a un
+    //    (bougie du Webasto, démarrage compresseur), sinon 1,25 × I nominal.
+    const farSpec = spec(byId[far]);
+    const peak = roleOf(byId[far]) === "load" ? +farSpec.Ipeak || 0 : 0;
+    const Ifuse = Math.max(I * 1.25, peak);
+    let fuse = U > 48 ? null : (FUSES.find(f => f >= Ifuse) || null);
+
+    // 5. un fusible ne protège que s'il est en dessous de ce que le câble tient
+    if (fuse && Snorm && fuse > AMPACITY[Snorm]) {
+      const up = SECTIONS.find(s => s >= Snorm && AMPACITY[s] >= fuse);
+      if (up) { Snorm = up; limit = "calibre du fusible"; }
+    }
+    return { w, I, U, S, Snorm, fuse, limit, capped, peak, Iz: Snorm ? AMPACITY[Snorm] : 0 };
   });
 }
 
 function energyBalance() {
   const E = state.elec;
   const U = E.params.U;
+  // rendement réel de l'onduleur du schéma (les appareils 230V paient sa perte)
+  const inv = E.nodes.find(n => n.type === "convertisseur");
+  const invEff = inv ? (spec(inv).eff || 0.88) : 0.88;
   const loads = E.nodes.filter(n => roleOf(n) === "load").map(n => {
     const s = spec(n);
-    const eff = s.type === "load230" ? 0.85 : 1;
-    return { n, name: s.name, P: s.P || 0, h: s.h || 0, Wh: (s.P || 0) * (s.h || 0) / eff };
+    const v230 = is230(n);
+    const eff = v230 ? invEff : 1;
+    return {
+      n, name: s.name, v230, P: s.P || 0, h: s.h || 0,
+      Wh: (s.P || 0) * (s.h || 0) / eff,
+      A12: (s.P || 0) / (v230 ? U * invEff : U),  // ce que ça tire côté batterie
+    };
   });
   const conso = loads.reduce((t, l) => t + l.Wh, 0);
   const panels = E.nodes.filter(n => n.type === "panneau");
@@ -122,7 +180,16 @@ function energyBalance() {
     const s = spec(n);
     return t + (s.Ah || 0) * U * (s.chem === "LiFePO4" ? 0.8 : 0.5);
   }, 0);
-  return { loads, bats, conso, prod, capWh, autonomy: conso > 0 ? capWh / conso : Infinity };
+  // appel de courant si TOUT fonctionnait en même temps, vs limite du BMS
+  const peakA = loads.reduce((t, l) => t + l.A12, 0);
+  const bms = bats.reduce((t, n) => t + (+spec(n).bms || 0), 0);
+  // recharge en roulant : seul le B2B compte (le chargeur secteur suppose une prise)
+  const chargeA = E.nodes.filter(n => n.type === "b2b")
+    .reduce((t, n) => t + (+spec(n).A || 0), 0);
+  return {
+    loads, bats, conso, prod, capWh, peakA, bms, chargeA,
+    autonomy: conso > 0 ? capWh / conso : Infinity,
+  };
 }
 
 // couleur d'un câble selon sa nature (comme sur un vrai schéma)
@@ -133,7 +200,7 @@ function wireColor(e, calcFor) {
   const byId = Object.fromEntries(E.nodes.map(n => [n.id, n]));
   const a = byId[e.a], b = byId[e.b];
   if (!a || !b) return "#888";
-  if (spec(a).type === "load230" || spec(b).type === "load230") return "#8e44ad"; // 230V
+  if (is230(a) || is230(b)) return "#8e44ad"; // 230V
   if (spec(a).type === "panneau" || spec(b).type === "panneau") return "#d4a017"; // PV
   if (["b2b", "alternateur"].includes(a.type) || ["b2b", "alternateur"].includes(b.type)) return "#e67e22"; // alternateur
   return "#cc3333"; // 12V (paire +/-)
@@ -163,7 +230,7 @@ export function render(root) {
             <span style="color:#cc3333">■</span> 12V (paire +/–) ·
             <span style="color:#e67e22">■</span> alternateur ·
             <span style="color:#8e44ad">■</span> 230V ·
-            <span style="color:#e74c3c">■</span> ⚠️ section &gt; 70 mm²
+            <span style="color:#e74c3c">■</span> ⚠️ section &gt; 120 mm² : raccourcir le câble
           </div>
         </fieldset>
         <fieldset><legend>Paramètres</legend>
@@ -220,9 +287,9 @@ export function render(root) {
     nodeSub: n => {
       const s = spec(n);
       const role = roleOf(n);
-      if (role === "load") return `${s.P || 0} W · ${fmt((s.P || 0) / (s.type === "load230" ? 230 : E.params.U), 1)} A · ${s.h || 0} h/j`;
+      if (role === "load") return `${s.P || 0} W · ${fmt((s.P || 0) / (is230(n) ? 230 : E.params.U), 1)} A · ${s.h || 0} h/j`;
       if (s.type === "panneau") return `${s.P || 0} W · Vmp ${s.U || 18} V`;
-      if (s.type === "batterie") return `${s.Ah || 0} Ah · ${s.chem || "?"} · ${fmt((s.Ah || 0) * E.params.U)} Wh`;
+      if (s.type === "batterie") return `${s.Ah || 0} Ah · ${s.chem || "?"} · ${fmt((s.Ah || 0) * E.params.U)} Wh${s.bms ? " · BMS " + s.bms + " A" : ""}`;
       if (s.type === "convertisseur") return `${s.P || 0} W · η ${Math.round((s.eff || .85) * 100)}%`;
       if (["mppt", "b2b", "secteur", "alternateur"].includes(s.type)) return `${s.A || 0} A max`;
       return ROLE_NAMES[role] || "";
@@ -257,7 +324,7 @@ export function render(root) {
         edgeLabel: e => {
           const c = calcFor(e);
           if (!c || !c.I) return [`${e.len || 1} m`];
-          return [`${fmt(c.I, 1)} A · ${e.len || 1} m`, `→ ${c.Snorm ? c.Snorm + " mm²" : "⚠️ >70mm²"}${c.fuse ? " · fus. " + c.fuse + " A" : ""}`];
+          return [`${fmt(c.I, 1)} A · ${e.len || 1} m`, `→ ${c.Snorm ? c.Snorm + " mm²" : "⚠️ >120mm²"}${c.fuse ? " · fus. " + c.fuse + " A" : ""}`];
         },
         onLink: (a, b) => { E.wires.push({ id: uid(), a, b, len: 2, autoLen: true }); save("elec", "Câble ajouté"); refresh(); },
       });
@@ -327,13 +394,16 @@ export function render(root) {
         ${n.type === "panneau" ? F("Vmp (V)", "U", 0.5) : ""}
         ${["mppt", "b2b", "secteur", "alternateur"].includes(n.type) || (n.type === "autre" && role === "source") ? F("Courant max (A)", "A", 1) : ""}
         ${n.type === "batterie" ? F("Capacité (Ah)", "Ah", 5) : ""}
+        ${n.type === "batterie" ? F("BMS — courant max (A)", "bms", 10) : ""}
         ${n.type === "batterie" ? `<div class="row"><label>Chimie</label><select data-k="chem">
             <option ${s.chem === "LiFePO4" ? "selected" : ""}>LiFePO4</option>
             <option ${s.chem === "AGM" ? "selected" : ""}>AGM</option>
             <option ${s.chem === "GEL" ? "selected" : ""}>GEL</option></select></div>` : ""}
         ${role === "load" ? F("Utilisation (h/j)", "h", 0.5) : ""}
+        ${role === "load" ? F("Courant d'appel (A)", "Ipeak", 1) : ""}
         ${n.type === "convertisseur" || n.type === "mppt" ? F("Rendement (0-1)", "eff", 0.01) : ""}
         <div class="row"><label>Notes</label><input type="text" data-k="notes" value="${esc(n.notes || "")}" style="width:150px"></div>
+        ${lib(n.type).note ? `<p class="muted" style="font-size:11px;margin:6px 0 0">${esc(lib(n.type).note)}</p>` : ""}
       </div></fieldset>`;
       el.querySelectorAll("[data-k]").forEach(inp => inp.onchange = () => {
         const k = inp.dataset.k;
@@ -348,16 +418,28 @@ export function render(root) {
       el.innerHTML = `<fieldset><legend>Câble</legend><div class="props">
         <div class="row"><label>Longueur (m)</label><input type="number" id="w-len" value="${w.len || 1}" min="0.5" step="0.1" ${w.autoLen !== false ? "disabled" : ""}></div>
         <div class="row"><label>Longueur auto</label><input type="checkbox" id="w-auto" ${w.autoLen !== false ? "checked" : ""} title="Calculée depuis le plan 2D du van"> <span class="muted" style="font-size:11px">depuis le plan 2D</span></div>
+        <div class="row"><label>Tension forcée (V)</label><input type="number" id="w-uw" value="${w.Uw || ""}" min="0" step="1" placeholder="auto" style="width:70px" title="Laisse vide = déduit automatiquement. À remplir pour une chaîne de panneaux en série."></div>
         <table class="calc-table">
           <tr><td>Tension</td><td><strong>${c.U || "?"} V</strong></td></tr>
-          <tr><td>Courant</td><td><strong>${fmt(c.I || 0, 1)} A</strong></td></tr>
-          <tr><td>Section mini calculée</td><td>${fmt(c.S || 0, 2)} mm²</td></tr>
-          <tr><td>Section à acheter</td><td><strong>${c.Snorm ? c.Snorm + " mm²" : "⚠️ trop gros, raccourcir"}</strong></td></tr>
-          <tr><td>Fusible conseillé</td><td><strong>${c.fuse ? c.fuse + " A" : "—"}</strong></td></tr>
+          <tr><td>Courant</td><td><strong>${fmt(c.I || 0, 1)} A</strong>${c.capped ? ' <span class="bad" title="Plafonné par le BMS de la batterie">⚠️ BMS</span>' : ""}</td></tr>
+          <tr><td>Section mini (chute)</td><td>${fmt(c.S || 0, 2)} mm²</td></tr>
+          <tr><td><strong>Section à acheter</strong></td><td><strong>${c.Snorm ? c.Snorm + " mm²" : "⚠️ trop gros, raccourcir"}</strong></td></tr>
+          <tr><td>Limitée par</td><td>${c.limit || "—"}</td></tr>
+          <tr><td>Tenue du câble</td><td>${c.Iz ? c.Iz + " A max" : "—"}</td></tr>
+          <tr><td><strong>Fusible</strong></td><td><strong>${c.fuse ? c.fuse + " A" : "—"}</strong>${c.peak ? ` <span class="muted">(appel ${c.peak} A)</span>` : ""}</td></tr>
         </table>
-        <p class="muted" style="font-size:11px">S = 2×ρ×L×I / ΔU, ρ cuivre 0,0175 · chute ${E.params.dropPct}% · fusible ≈ 1,25×I, au départ batterie, au plus près !</p>
+        <p class="muted" style="font-size:11px">La section retenue est la plus grande des trois : chute de tension
+        (S = 2×ρ×L×I / ΔU, ρ cuivre 0,0175, chute ${E.params.dropPct} %), tenue en échauffement,
+        et section minimale pour que le fusible protège vraiment le câble.
+        Fusible = 1,25 × I, ou le courant d'appel s'il est plus grand.
+        Il se monte au départ, au plus près de la batterie.</p>
       </div></fieldset>`;
       el.querySelector("#w-len").onchange = e => { w.len = +e.target.value || 1; save("elec", "Longueur câble"); refresh(); };
+      el.querySelector("#w-uw").onchange = e => {
+        const v = +e.target.value;
+        if (v > 0) w.Uw = v; else delete w.Uw;
+        save("elec", "Tension câble"); refresh();
+      };
       el.querySelector("#w-auto").onchange = e => {
         w.autoLen = e.target.checked;
         if (w.autoLen && plan) plan.updateAutoLens();
@@ -375,7 +457,7 @@ export function render(root) {
       <table class="calc-table">
         <tr><th></th><th style="width:52px">W</th><th style="width:46px">h/j</th><th class="right">Wh/j</th></tr>
         ${b.loads.map(l => `<tr data-nid="${l.n.id}">
-          <td style="font-size:11px">${esc(l.name)}</td>
+          <td style="font-size:11px">${esc(l.name)}${l.v230 ? ' <span class="muted">230V</span>' : ""}</td>
           <td><input type="number" class="bl-p" value="${l.P}" step="5" style="width:48px;padding:2px 4px;font-size:11px"></td>
           <td><input type="number" class="bl-h" value="${l.h}" step="0.5" style="width:42px;padding:2px 4px;font-size:11px"></td>
           <td class="right">${fmt(l.Wh)}</td></tr>`).join("")}
@@ -387,7 +469,18 @@ export function render(root) {
           <td class="right">${fmt((spec(n).Ah || 0) * E.params.U * (spec(n).chem === "LiFePO4" ? 0.8 : 0.5))} Wh ut.</td></tr>`).join("")}
         <tr><th colspan="3">Autonomie sans soleil</th><th class="right">${b.autonomy === Infinity ? "∞" : fmt(b.autonomy, 1) + " j"}</th></tr>
       </table>
-      <p style="font-size:12px" class="${ok ? "ok" : "bad"}">${ok ? "✅ Le solaire couvre la conso journalière." : "⚠️ Solaire insuffisant : ajoute des panneaux, du soleil, ou roule (B2B)."}</p>
+      <p style="font-size:12px" class="${ok ? "ok" : "bad"}">${ok
+        ? "✅ Le solaire couvre la conso journalière."
+        : `⚠️ Déficit de ${fmt(b.conso - b.prod)} Wh/j.${b.chargeA
+            ? ` Il faut ${fmt((b.conso - b.prod) / (b.chargeA * E.params.U), 1)} h de route par jour pour le combler (chargeurs : ${fmt(b.chargeA)} A).`
+            : ""} Sinon : plus de panneaux, ou moins de conso.`}</p>
+      ${b.bms ? `<table class="calc-table" style="margin-top:6px">
+        <tr><td>Appel si tout tourne ensemble</td><td class="right"><strong>${fmt(b.peakA)} A</strong></td></tr>
+        <tr><td>Limite du BMS batterie</td><td class="right"><strong>${fmt(b.bms)} A</strong></td></tr>
+      </table>
+      <p style="font-size:12px" class="${b.peakA > b.bms ? "bad" : "ok"}">${b.peakA > b.bms
+        ? `⚠️ ${fmt(b.peakA - b.bms)} A de trop : le BMS coupera. Tu ne pourras pas tout faire tourner en même temps — plaque induction et chauffe-eau notamment.`
+        : "✅ Même tout allumé, on reste sous la limite du BMS."}</p>` : ""}
     </fieldset>`;
     el.querySelectorAll("tr[data-nid]").forEach(tr => {
       const n = E.nodes.find(x => x.id === tr.dataset.nid);

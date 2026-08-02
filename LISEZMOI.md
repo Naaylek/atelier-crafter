@@ -99,17 +99,46 @@ dans `js/secret.js` par la sortie. Demande-moi, c'est immédiat.
 - **🏠 Tableau de bord** — avancement, budget, prochaine étape, fiche du van.
 - **📋 Planning** — 48 tâches pré-remplies en 8 phases (préparation → VASP),
   durées, dates, statuts. Coche au fur et à mesure.
-- **💶 Budget** — liste d'achats pré-remplie (~4 200 €), par catégorie, avec
-  magasins et prix. Coche = acheté. Modifie tout.
+- **💶 Budget** — liste d'achats pré-remplie (~7 200 € hors mécanique), par
+  catégorie, avec magasins, prix et notes. Coche = acheté. Modifie tout.
 - **⚡ Électricité** — deux vues : **🗺 Schéma** (câbles à angles droits,
   couleurs par type : jaune = solaire, rouge = 12V, orange = alternateur,
   violet = 230V) et **🚐 Plan van** (vue de dessus : glisse chaque composant
   à sa vraie place, les longueurs de câbles se calculent toutes seules).
-  Chaque câble affiche : courant (A), longueur, section à acheter (mm²),
-  fusible conseillé (S = 2×ρ×L×I/ΔU, chute 3 %). Le **bilan énergie** est
-  directement modifiable (W et h/j de chaque appareil, Ah des batteries).
+  Le **bilan énergie** est directement modifiable (W et h/j de chaque
+  appareil, Ah et BMS des batteries).
   ➕ palette pour ajouter des composants (dont « Autre composant » libre),
   🗑 ou ⌫ pour supprimer.
+
+### Comment la section de chaque câble est choisie
+
+La section retenue est **la plus grande des trois** contraintes — le panneau
+du câble affiche laquelle a tranché :
+
+1. **Chute de tension** : S = 2 × ρ × L × I / ΔU (ρ cuivre 0,0175, chute 3 %
+   réglable). C'est ce qui compte sur les longs câbles à faible courant.
+2. **Échauffement** : la section doit tenir le courant en continu. Valeurs
+   pour du câble souple à l'air libre, 30 °C — en faisceau serré, compter 0,7×.
+3. **Calibre du fusible** : un fusible ne protège que s'il claque avant que le
+   câble ne chauffe. Si le fusible dépasse ce que la section tient, l'appli
+   monte d'un cran.
+
+Minimum 1,5 mm² en 12 V (tenue aux vibrations) et 2,5 mm² en 230 V.
+
+Le **fusible** vaut 1,25 × le courant nominal, **ou le courant d'appel** de
+l'appareil s'il est plus grand (champ « courant d'appel » : bougie du Webasto,
+démarrage du compresseur du frigo). Sans ça, un fusible calculé sur le courant
+nominal saute à chaque démarrage.
+
+Le **BMS de la batterie** plafonne tout : aucun câble 12 V ne peut voir plus
+que ce que la batterie sait débiter. Quand c'est le cas, un ⚠️ BMS s'affiche.
+Le bilan compare aussi l'appel de courant « tout allumé » à cette limite.
+
+Sur une chaîne de panneaux en série, remplis **« Tension forcée »** sur le
+câble qui descend au MPPT (36 V ici) : la section calculée en tient compte.
+- **🔥 Chauffage** (budget) — Webasto Air Top 2000 STC. Attention : les
+  0,9-2 kW annoncés sont **thermiques**. Côté électrique, il ne tire que
+  ~30 W (et ~16 A pendant les 30 s de préchauffage bougie).
 - **💧 Eau** — mêmes deux vues (schéma + plan van vue de dessus, longueurs
   de tuyaux auto). Couleurs : bleu = froide, rouge = chaude (chauffe-eau),
   gris = évacuation. Diamètres Ø10-38, bilan eau modifiable (volumes),
