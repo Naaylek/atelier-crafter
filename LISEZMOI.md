@@ -24,8 +24,12 @@ L'affichage s'adapte tout seul en dessous de 900 px de large
   à gauche pour l'ouvrir, il se referme tout seul quand tu choisis un meuble
 - **van 3D** : un doigt pour tourner, deux pour zoomer/déplacer ;
   la caméra se recadre automatiquement en portrait
-- **schémas élec/eau** : pincement à deux doigts pour zoomer
-- **tableaux** planning et budget : ils défilent horizontalement
+- **schémas élec/eau ET plan van 2D** : pincement à deux doigts pour zoomer,
+  un doigt sur le fond pour déplacer (le zoom de la page est neutralisé
+  au-dessus du dessin, sinon le navigateur zoomait toute l'appli)
+- **tableaux** planning et budget : chaque ligne devient une **fiche**,
+  intitulé au-dessus et champ sur toute la largeur — les noms de tâches,
+  articles, magasins et notes sont enfin lisibles
 
 Ajoute le site à ton écran d'accueil (Partager → « Sur l'écran d'accueil ») :
 il s'ouvre alors comme une vraie appli, sans barre de navigateur.
