@@ -66,6 +66,19 @@ export class Diagram {
     const touches = new Map();   // doigts posés, pour le pincement
     let pinch = null;
 
+    // Sans ça, le navigateur intercepte le pincement et zoome la PAGE
+    // au lieu de laisser le schéma se zoomer lui-même.
+    this.svg.style.touchAction = "none";
+    const stopNativeGesture = ev => {
+      if (ev.touches && ev.touches.length < 2) return; // un seul doigt : on laisse faire
+      ev.preventDefault();
+    };
+    this.svg.addEventListener("touchstart", stopNativeGesture, { passive: false });
+    this.svg.addEventListener("touchmove", stopNativeGesture, { passive: false });
+    // Safari (iPhone / iPad) a en plus ses propres évènements de pincement
+    ["gesturestart", "gesturechange", "gestureend"].forEach(t =>
+      this.svg.addEventListener(t, ev => ev.preventDefault(), { passive: false }));
+
     const dist = () => {
       const [a, b] = [...touches.values()];
       return Math.hypot(a.x - b.x, a.y - b.y);

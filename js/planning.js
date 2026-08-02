@@ -128,20 +128,21 @@ export function render(root) {
   });
 }
 
+// data-label : sert d'intitulé quand les lignes deviennent des fiches (téléphone)
 function rowHTML(t, phases) {
   return `<tr data-id="${t.id}">
-    <td><input type="checkbox" class="t-check" ${t.status === "done" ? "checked" : ""}></td>
-    <td><input type="text" class="t-name" value="${esc(t.name)}" ${t.status === "done" ? 'style="text-decoration:line-through;color:#999"' : ""}></td>
-    <td><input type="number" class="t-dur" value="${t.dur}" min="0" step="0.5" style="width:60px"></td>
-    <td><input type="date" class="t-date" value="${t.date || ""}"></td>
-    <td><select class="t-status">
+    <td data-label="Fait"><input type="checkbox" class="t-check" ${t.status === "done" ? "checked" : ""}></td>
+    <td data-label="Tâche" class="c-main"><input type="text" class="t-name" value="${esc(t.name)}" ${t.status === "done" ? 'style="text-decoration:line-through;color:#999"' : ""}></td>
+    <td data-label="Durée (h)"><input type="number" class="t-dur" value="${t.dur}" min="0" step="0.5" style="width:60px"></td>
+    <td data-label="Date prévue"><input type="date" class="t-date" value="${t.date || ""}"></td>
+    <td data-label="Statut"><select class="t-status">
       ${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${t.status === k ? "selected" : ""}>${v}</option>`).join("")}
     </select></td>
-    <td><select class="t-phase">
+    <td data-label="Phase"><select class="t-phase">
       ${phases.map((p, i) => `<option value="${i}" ${t.phase === i ? "selected" : ""}>${esc(p)}</option>`).join("")}
     </select></td>
-    <td class="w-s"><input type="text" class="t-notes" value="${esc(t.notes || "")}" placeholder="…"></td>
-    <td><button class="btn small danger t-del" title="Supprimer">✕</button></td>
+    <td data-label="Notes" class="w-s c-main"><input type="text" class="t-notes" value="${esc(t.notes || "")}" placeholder="…"></td>
+    <td data-label="" class="c-act"><button class="btn small danger t-del" title="Supprimer">✕</button></td>
   </tr>`;
 }
 

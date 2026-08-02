@@ -274,10 +274,48 @@ legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
   /* ---------- schémas élec / eau ---------- */
   .editor-canvas svg { touch-action: none; }
 
-  /* ---------- tableaux : défilement horizontal ---------- */
-  .phase-body, .card > div[style*="overflow"], .tab > div[style*="overflow"] { -webkit-overflow-scrolling: touch; }
-  table.grid { min-width: 660px; }              /* jamais de colonnes écrasées : on fait glisser */
-  table.grid th, table.grid td { padding: 5px 6px; }
+  /* ---------- tableaux transformés en fiches ----------
+     Sur téléphone, une ligne de tableau devient une petite fiche :
+     chaque champ sur sa propre ligne, avec son intitulé à gauche.
+     Fini les colonnes écrasées et les noms illisibles. */
+  table.grid, table.grid tbody, table.grid tr, table.grid td { display: block; width: auto; }
+  table.grid { min-width: 0; }
+  table.grid thead { display: none; }
+  table.grid tr {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
+    margin: 8px; padding: 6px 10px 8px; position: relative;
+  }
+  table.grid tr:hover td { background: transparent; }
+  table.grid td {
+    border: none; padding: 4px 0; display: flex; align-items: center; gap: 8px;
+    text-align: left;
+  }
+  table.grid td::before {
+    content: attr(data-label);
+    flex: 0 0 84px; font-size: 10.5px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .03em; line-height: 1.25;
+  }
+  table.grid td[data-label=""]::before { display: none; }
+  /* champs texte : toute la largeur restante, enfin lisibles */
+  table.grid td input[type="text"] { flex: 1; width: auto; min-width: 0 !important; }
+  table.grid td select { flex: 1; min-width: 0; }
+  table.grid td.c-main input { font-size: 15px; }
+  /* champs importants (nom, magasin, notes) : intitulé au-dessus,
+     champ sur toute la largeur de la fiche */
+  table.grid td.c-main { flex-direction: column; align-items: stretch; gap: 2px; padding: 5px 0; }
+  table.grid td.c-main::before { flex: none; }
+  table.grid td.c-main input { width: 100%; }
+  /* bandeau du haut : case à cocher à gauche, corbeille à droite */
+  table.grid tr { padding-top: 34px; }
+  table.grid td:first-child {
+    position: absolute; top: 7px; left: 10px; padding: 0;
+    gap: 6px; align-items: center;
+  }
+  table.grid td:first-child::before { flex: none; font-size: 11px; }
+  table.grid td:first-child input { transform: scale(1.25); margin-left: 2px; }
+  table.grid td.c-act { position: absolute; top: 5px; right: 8px; padding: 0; }
+  table.grid td.c-act .btn { padding: 5px 11px; font-size: 13px; }
+  table.grid td.right { justify-content: flex-start; }
   .phase-head { flex-wrap: wrap; gap: 8px; }
   .phase-head .progress { order: 5; flex: 1 0 100%; max-width: none; }
 

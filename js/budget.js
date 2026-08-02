@@ -95,15 +95,15 @@ export function render(root) {
   const shown = items.filter(i => filterCat === "all" || i.cat === filterCat);
   body.innerHTML = shown.map(i => `
     <tr data-id="${i.id}">
-      <td><input type="checkbox" class="b-check" ${i.status === "done" ? "checked" : ""} title="Acheté ?"></td>
-      <td><input type="text" class="b-name" value="${esc(i.name)}" ${i.status === "done" ? 'style="color:#888"' : ""}></td>
-      <td><select class="b-cat">${cats.map(c => `<option ${i.cat === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></td>
-      <td class="w-s"><input type="text" class="b-store" value="${esc(i.store || "")}"></td>
-      <td><input type="number" class="b-price" value="${i.price}" min="0" step="0.5" style="width:75px"></td>
-      <td><input type="number" class="b-qty" value="${i.qty}" min="0" style="width:50px"></td>
-      <td class="right"><strong>${eur(i.price * i.qty)}</strong></td>
-      <td class="w-s"><input type="text" class="b-notes" value="${esc(i.notes || "")}" placeholder="…"></td>
-      <td><button class="btn small danger b-del">✕</button></td>
+      <td data-label="Acheté"><input type="checkbox" class="b-check" ${i.status === "done" ? "checked" : ""} title="Acheté ?"></td>
+      <td data-label="Article" class="c-main"><input type="text" class="b-name" value="${esc(i.name)}" ${i.status === "done" ? 'style="color:#888"' : ""}></td>
+      <td data-label="Catégorie"><select class="b-cat">${cats.map(c => `<option ${i.cat === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></td>
+      <td data-label="Où acheter" class="w-s c-main"><input type="text" class="b-store" value="${esc(i.store || "")}"></td>
+      <td data-label="Prix unit."><input type="number" class="b-price" value="${i.price}" min="0" step="0.5" style="width:75px"></td>
+      <td data-label="Qté"><input type="number" class="b-qty" value="${i.qty}" min="0" style="width:50px"></td>
+      <td data-label="Total" class="right"><strong>${eur(i.price * i.qty)}</strong></td>
+      <td data-label="Notes" class="w-s c-main"><input type="text" class="b-notes" value="${esc(i.notes || "")}" placeholder="…"></td>
+      <td data-label="" class="c-act"><button class="btn small danger b-del">✕</button></td>
     </tr>`).join("");
 
   root.querySelector("#bu-max").onchange = e => { state.budget.max = +e.target.value || 5000; save("budget", "Budget max modifié"); render(root); };

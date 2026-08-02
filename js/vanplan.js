@@ -22,11 +22,77 @@ export class VanPlan {
     this.o = opts;
     this.el = container;
     this.sel = null;
+    this.z = 1; this.ox = 0; this.oy = 0;   // zoom / déplacement de la vue
     container.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block"></svg>`;
     this.svg = container.querySelector("svg");
     this.ensurePositions();
+    this.bindZoom();
     new ResizeObserver(() => this.render()).observe(container);
     this.render();
+  }
+
+  // Molette (ordinateur) et pincement à deux doigts (téléphone).
+  // Sans « touch-action: none » + preventDefault, le navigateur zoomerait la PAGE.
+  bindZoom() {
+    this.svg.style.touchAction = "none";
+    const touches = new Map();
+    let pinch = null, pan = null;
+    const dist = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+    const mid = () => { const [a, b] = [...touches.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
+    const stopNative = ev => { if (!ev.touches || ev.touches.length > 1) ev.preventDefault(); };
+    this.svg.addEventListener("touchstart", stopNative, { passive: false });
+    this.svg.addEventListener("touchmove", stopNative, { passive: false });
+    ["gesturestart", "gesturechange", "gestureend"].forEach(t =>
+      this.svg.addEventListener(t, e => e.preventDefault(), { passive: false }));
+
+    this.svg.addEventListener("wheel", ev => {
+      ev.preventDefault();
+      this.zoomAt(ev.clientX, ev.clientY, ev.deltaY < 0 ? 1.12 : 0.89);
+    }, { passive: false });
+
+    this.svg.addEventListener("pointerdown", ev => {
+      touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (touches.size === 2) { pan = null; pinch = { d: dist() }; return; }
+      if (ev.target === this.svg) pan = { x: ev.clientX, y: ev.clientY, ox: this.ox, oy: this.oy };
+    });
+    this.svg.addEventListener("pointermove", ev => {
+      if (touches.has(ev.pointerId)) touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (pinch && touches.size === 2) {
+        const d = dist(), m = mid();
+        this.zoomAt(m.x, m.y, d / pinch.d);
+        pinch.d = d;
+        return;
+      }
+      if (pan) {
+        this.ox = pan.ox + ev.clientX - pan.x;
+        this.oy = pan.oy + ev.clientY - pan.y;
+        this.applyView();
+      }
+    });
+    const release = ev => {
+      touches.delete(ev.pointerId);
+      if (touches.size < 2) pinch = null;
+      if (touches.size === 0) pan = null;
+    };
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+  }
+
+  // zoome en gardant immobile le point visé
+  zoomAt(clientX, clientY, factor) {
+    const r = this.svg.getBoundingClientRect();
+    const z = Math.min(6, Math.max(1, this.z * factor));
+    const px = clientX - r.left, py = clientY - r.top;
+    this.ox = px - (px - this.ox) * (z / this.z);
+    this.oy = py - (py - this.oy) * (z / this.z);
+    this.z = z;
+    if (z === 1) { this.ox = 0; this.oy = 0; }   // dézoomé à fond : on recentre
+    this.applyView();
+  }
+
+  applyView() {
+    const g = this.svg.querySelector(".vp-view");
+    if (g) g.setAttribute("transform", `translate(${this.ox},${this.oy}) scale(${this.z})`);
   }
 
   // place les composants jamais positionnés sur une grille au centre
@@ -46,12 +112,14 @@ export class VanPlan {
   // mm van -> px écran
   sx(vz) { return this.pad + (vz + state.van.L / 2 + MARGIN) * this.k; }
   sy(vx) { return this.pad + (vx + state.van.W / 2 + MARGIN) * this.k; }
-  // px écran -> mm van
+  // px écran -> mm van (en défaisant d'abord le zoom / déplacement de la vue)
   toVan(ev) {
     const r = this.svg.getBoundingClientRect();
+    const px = (ev.clientX - r.left - this.ox) / this.z;
+    const py = (ev.clientY - r.top - this.oy) / this.z;
     return {
-      vz: (ev.clientX - r.left - this.pad) / this.k - state.van.L / 2 - MARGIN,
-      vx: (ev.clientY - r.top - this.pad) / this.k - state.van.W / 2 - MARGIN,
+      vz: (px - this.pad) / this.k - state.van.L / 2 - MARGIN,
+      vx: (py - this.pad) / this.k - state.van.W / 2 - MARGIN,
     };
   }
 
@@ -136,7 +204,8 @@ export class VanPlan {
       </g>`;
     });
 
-    this.svg.innerHTML = svg;
+    // tout le dessin vit dans un groupe : c'est lui qu'on zoome / déplace
+    this.svg.innerHTML = `<g class="vp-view" transform="translate(${this.ox},${this.oy}) scale(${this.z})">${svg}</g>`;
 
     // interactions
     this.svg.querySelectorAll("[data-link]").forEach(g => {
