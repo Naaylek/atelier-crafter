@@ -2,7 +2,7 @@
 import { state, save, uid, fmt } from "./store.js";
 import { EAU_LIB } from "./data.js";
 import { Diagram } from "./diagram.js";
-import { VanPlan, svgToPNG } from "./vanplan.js";
+import { VanPlan, svgToPNG, LABEL_MODES, autoLenFor } from "./vanplan.js";
 import { esc } from "./planning.js";
 import { makeResizable } from "./ui.js";
 
@@ -44,6 +44,7 @@ export function render(root) {
           <button class="btn" id="wa-link" ${viewPlan ? "disabled" : ""}>🔗 Relier</button>
           <button class="btn danger small" id="wa-del" disabled>🗑</button>
           <button class="btn secondary small" id="wa-png">📷 PNG</button>
+          ${viewPlan ? `<button class="btn secondary small" id="wa-labels" title="Quantité de texte affichée sur le plan">🏷</button>` : ""}
         </div>
         <div id="wa-props"></div>
         <fieldset><legend>➕ Ajouter un élément</legend>
@@ -126,6 +127,15 @@ export function render(root) {
 
   root.querySelector("#wa-vschema").onclick = () => { viewPlan = false; render(root); };
   root.querySelector("#wa-vplan").onclick = () => { viewPlan = true; render(root); };
+  const btnLab = root.querySelector("#wa-labels");
+  if (btnLab) {
+    const show = () => {
+      const m = plan?.labels || localStorage.getItem("ac-vanplan-labels") || "compact";
+      btnLab.textContent = LABEL_MODES[m].label;
+    };
+    btnLab.onclick = () => { plan?.cycleLabels(); show(); };
+    show();
+  }
   root.querySelector("#wa-png").onclick = () => {
     const svg = root.querySelector("#wa-canvas svg");
     if (svg) svgToPNG(svg, viewPlan ? "eau-plan-van.png" : "eau-schema.png");
@@ -190,15 +200,28 @@ export function render(root) {
         <div class="row"><label>Diamètre</label><select id="p-dia">
           ${DIAS.map(d => `<option value="${d}" ${(p.dia || 12) === d ? "selected" : ""}>Ø ${d} mm</option>`).join("")}
         </select></div>
-        <div class="row"><label>Longueur (m)</label><input type="number" id="p-len" value="${p.len || 1}" min="0.3" step="0.1" ${p.autoLen !== false ? "disabled" : ""}></div>
-        <div class="row"><label>Longueur auto</label><input type="checkbox" id="p-auto" ${p.autoLen !== false ? "checked" : ""}> <span class="muted" style="font-size:11px">depuis le plan 2D</span></div>
+        <div class="row"><label>Longueur (m)</label><input type="number" id="p-len" value="${p.len || 1}" min="0.3" step="0.1"></div>
+        <div class="row"><label>Longueur auto</label><input type="checkbox" id="p-auto" ${p.autoLen !== false ? "checked" : ""}> <span class="muted" style="font-size:11px">calculée depuis le plan van</span></div>
+        <p class="muted" style="font-size:11px;margin:2px 0 6px">${p.autoLen !== false
+          ? "Tape une longueur pour la figer (le plan van ne l'écrasera plus)."
+          : "🔒 Longueur figée à la main. Recoche « auto » pour la recalculer."}</p>
         <p class="muted" style="font-size:11px">Ø12 : alimentation (John Guest) · Ø25 : évacuation · Ø38 : remplissage.</p>
       </div></fieldset>`;
       el.querySelector("#p-dia").onchange = e => { p.dia = +e.target.value; save("eau", "Diamètre tuyau"); refresh(); };
-      el.querySelector("#p-len").onchange = e => { p.len = +e.target.value || 1; save("eau", "Longueur tuyau"); refresh(); };
+      // saisir une longueur la fige : sinon le plan van l'écraserait aussitôt
+      el.querySelector("#p-len").onchange = e => {
+        p.len = +e.target.value || 1;
+        p.autoLen = false;
+        save("eau", "Longueur tuyau");
+        refresh();
+      };
       el.querySelector("#p-auto").onchange = e => {
         p.autoLen = e.target.checked;
-        if (p.autoLen && plan) plan.updateAutoLens();
+        if (p.autoLen) {
+          // marche aussi depuis la vue Schéma, où il n'y a pas de plan van
+          const m = autoLenFor(E.nodes.find(n => n.id === p.a), E.nodes.find(n => n.id === p.b));
+          if (m !== null) p.len = m;
+        }
         save("eau", "Longueur tuyau " + (p.autoLen ? "auto" : "manuelle"));
         refresh();
       };

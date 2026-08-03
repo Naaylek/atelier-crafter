@@ -10,6 +10,26 @@ import { zoomStep } from "./diagram.js";
 const CAB_LEN = 1900; // longueur cabine dessinée (indicatif)
 const MARGIN = 700;   // marge autour du van (composants hors caisson autorisés)
 
+// Densité d'affichage. Avec 20 composants serrés dans le coffre arrière,
+// tout afficher rend le plan illisible : on peut réduire, ou tout couper.
+export const LABEL_MODES = {
+  full:    { label: "🏷 Tout",     f: 9.5, clip: 18, name: true,  link: true },
+  compact: { label: "🏷 Compact",  f: 7,   clip: 12, name: true,  link: true },
+  icons:   { label: "🏷 Icônes",   f: 0,   clip: 0,  name: false, link: false },
+};
+export const LABEL_ORDER = ["compact", "full", "icons"];
+const LS_KEY = "ac-vanplan-labels";
+
+// Longueur (m) entre deux composants d'après leur place réelle dans le van :
+// cheminement à angle droit + 30 cm de mou. Renvoie null si non plaçable.
+// Exportée pour que la vue « Schéma », qui n'a pas de plan sous la main,
+// puisse elle aussi revenir à la longueur calculée.
+export function autoLenFor(a, b) {
+  if (!a || !b || a.vz === undefined || b.vz === undefined) return null;
+  const mm = Math.abs(a.vz - b.vz) + Math.abs(a.vx - b.vx);
+  return Math.max(0.5, Math.round((mm / 1000 + 0.3) * 10) / 10);
+}
+
 export class VanPlan {
   /**
    * opts: {
@@ -24,6 +44,7 @@ export class VanPlan {
     this.el = container;
     this.sel = null;
     this.z = 1; this.ox = 0; this.oy = 0;   // zoom / déplacement de la vue
+    this.labels = localStorage.getItem(LS_KEY) || "compact";
     container.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block"></svg>`;
     this.svg = container.querySelector("svg");
     this.ensurePositions();
@@ -110,6 +131,15 @@ export class VanPlan {
     if (i) this.updateAutoLens(false);
   }
 
+  // Tout / Compact / Icônes seules — mémorisé d'une fois sur l'autre
+  cycleLabels() {
+    const i = LABEL_ORDER.indexOf(this.labels);
+    this.labels = LABEL_ORDER[(i + 1) % LABEL_ORDER.length];
+    localStorage.setItem(LS_KEY, this.labels);
+    this.render();
+    return this.labels;
+  }
+
   // mm van -> px écran
   sx(vz) { return this.pad + (vz + state.van.L / 2 + MARGIN) * this.k; }
   sy(vx) { return this.pad + (vx + state.van.W / 2 + MARGIN) * this.k; }
@@ -128,11 +158,8 @@ export class VanPlan {
     if (!this.o.onAutoLen) return;
     const byId = Object.fromEntries(this.o.nodes().map(n => [n.id, n]));
     this.o.links().forEach(l => {
-      const a = byId[l.a], b = byId[l.b];
-      if (!a || !b) return;
-      const mm = Math.abs(a.vz - b.vz) + Math.abs(a.vx - b.vx);
-      const m = Math.max(0.5, Math.round((mm / 1000 + 0.3) * 10) / 10); // + 30 cm de mou
-      this.o.onAutoLen(l, m, notify);
+      const m = autoLenFor(byId[l.a], byId[l.b]);
+      if (m !== null) this.o.onAutoLen(l, m, notify);
     });
   }
 
@@ -179,6 +206,10 @@ export class VanPlan {
       <text x="${rearX + (V.rearToArch / 2) * k}" y="${topY - 6}" font-size="9" fill="#4d94cc" text-anchor="middle">${V.rearToArch}</text>`;
 
     // liaisons (angle droit : vertical puis horizontal)
+    // trois densités d'affichage : le plan devient vite illisible avec 20
+    // composants, on peut donc réduire le texte ou ne garder que les icônes
+    const M = LABEL_MODES[this.labels] || LABEL_MODES.compact;
+
     links.forEach(l => {
       const a = byId[l.a], b = byId[l.b];
       if (!a || !b) return;
@@ -186,10 +217,11 @@ export class VanPlan {
       const selc = this.sel?.kind === "edge" && this.sel.id === l.id;
       const col = this.o.linkColor ? this.o.linkColor(l) : "#cc3333";
       const d = `M${ax},${ay} L${ax},${by} L${bx},${by}`;
+      const txt = M.link && this.o.linkLabel ? this.o.linkLabel(l) : "";
       svg += `<g data-link="${l.id}" style="cursor:pointer">
         <path d="${d}" fill="none" stroke="${col}" stroke-width="${selc ? 4.5 : 2.5}" stroke-linejoin="round" opacity="0.9"/>
         <path d="${d}" fill="none" stroke="transparent" stroke-width="12"/>
-        <text x="${(ax + bx) / 2}" y="${by - 5}" font-size="9.5" fill="#555" text-anchor="middle" style="pointer-events:none">${esc(this.o.linkLabel ? this.o.linkLabel(l) : "")}</text>
+        ${txt ? `<text class="vp-label" x="${(ax + bx) / 2}" y="${by - 5}" font-size="${M.f}" fill="#555" text-anchor="middle" style="pointer-events:none">${esc(txt)}</text>` : ""}
       </g>`;
     });
 
@@ -201,12 +233,13 @@ export class VanPlan {
       svg += `<g data-node="${n.id}" style="cursor:grab">
         <circle cx="${x}" cy="${y}" r="17" fill="#fff" stroke="${selc ? "#c96f2f" : col}" stroke-width="${selc ? 3 : 1.8}"/>
         <text x="${x}" y="${y + 5.5}" font-size="15" text-anchor="middle" style="pointer-events:none">${this.o.nodeIcon(n)}</text>
-        <text x="${x}" y="${y + 30}" font-size="9.5" font-weight="600" fill="#2b2620" text-anchor="middle" style="pointer-events:none">${esc(clip(this.o.nodeTitle(n), 18))}</text>
+        ${M.name ? `<text class="vp-label" x="${x}" y="${y + 29}" font-size="${M.f}" font-weight="600" fill="#2b2620" text-anchor="middle" style="pointer-events:none">${esc(clip(this.o.nodeTitle(n), M.clip))}</text>` : ""}
       </g>`;
     });
 
     // tout le dessin vit dans un groupe : c'est lui qu'on zoome / déplace
     this.svg.innerHTML = `<g class="vp-view" transform="translate(${this.ox},${this.oy}) scale(${this.z})">${svg}</g>`;
+    haloLabels(this.svg);
 
     // interactions
     this.svg.querySelectorAll("[data-link]").forEach(g => {
@@ -240,6 +273,25 @@ export class VanPlan {
     });
     this.svg.addEventListener("pointerdown", () => this.select(null), { once: true });
   }
+}
+
+// Pastille claire derrière chaque étiquette, sinon les traits et les cercles
+// passent au travers du texte.
+const SVGNS = "http://www.w3.org/2000/svg";
+function haloLabels(svg) {
+  svg.querySelectorAll("text.vp-label").forEach(t => {
+    let bb;
+    try { bb = t.getBBox(); } catch { return; }
+    if (!bb.width) return;
+    const r = document.createElementNS(SVGNS, "rect");
+    r.setAttribute("class", "wire-label-bg");
+    r.setAttribute("x", bb.x - 2);
+    r.setAttribute("y", bb.y - 1);
+    r.setAttribute("width", bb.width + 4);
+    r.setAttribute("height", bb.height + 2);
+    r.setAttribute("rx", 2.5);
+    t.parentNode.insertBefore(r, t);
+  });
 }
 
 // export PNG d'un SVG

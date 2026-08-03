@@ -50,6 +50,7 @@ function migrate(s) {
   if (s.van.shell && (s.van.shell.z === 180 || s.van.shell.z === 1100)) s.van.shell.z = SHELL_DEFAULT.z;
   if (!(s.rev >= 2)) migrateRev2(s);
   if (!(s.rev >= 3)) migrateRev3(s);
+  if (!(s.rev >= 4)) migrateRev4(s);
   return s;
 }
 
@@ -71,6 +72,21 @@ function migrateRev3(s) {
   respread(s.elec.nodes, DEFAULT_ELEC.nodes);
   respread(s.eau.nodes, DEFAULT_EAU.nodes);
   s.rev = 3;
+}
+
+// rev 4 — les éléments du circuit d'eau n'avaient pas de place définie dans le
+// van : sans elle, la longueur des tuyaux ne peut pas se calculer. On ne
+// remplit que ceux qui n'en ont jamais eu, pour ne rien déplacer.
+function migrateRev4(s) {
+  const byType = {};
+  DEFAULT_EAU.nodes.forEach(r => (byType[r.type] = byType[r.type] || []).push(r));
+  const seen = {};
+  s.eau.nodes.forEach(n => {
+    const i = (seen[n.type] = (seen[n.type] || 0) + 1) - 1;
+    const ref = (byType[n.type] || [])[i];
+    if (ref && n.vz === undefined) { n.vz = ref.vz; n.vx = ref.vx; }
+  });
+  s.rev = 4;
 }
 
 // rev 2 — refonte électricité : batterie 300Ah, onduleur 2200W, chauffage

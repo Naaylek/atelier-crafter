@@ -2,7 +2,7 @@
 import { state, save, uid, fmt } from "./store.js";
 import { ELEC_LIB, SECTIONS, FUSES, AMPACITY } from "./data.js";
 import { Diagram } from "./diagram.js";
-import { VanPlan, svgToPNG } from "./vanplan.js";
+import { VanPlan, svgToPNG, LABEL_MODES, autoLenFor } from "./vanplan.js";
 import { esc } from "./planning.js";
 import { makeResizable } from "./ui.js";
 
@@ -243,6 +243,7 @@ export function render(root) {
           <button class="btn" id="el-link" ${viewPlan ? "disabled" : ""}>🔗 Relier</button>
           <button class="btn danger small" id="el-del" disabled>🗑</button>
           <button class="btn secondary small" id="el-png">📷 PNG</button>
+          ${viewPlan ? `<button class="btn secondary small" id="el-labels" title="Quantité de texte affichée sur le plan">🏷</button>` : ""}
         </div>
         <div id="el-props"></div>
         <fieldset><legend>➕ Ajouter un composant</legend>
@@ -356,6 +357,16 @@ export function render(root) {
 
   root.querySelector("#el-vschema").onclick = () => { viewPlan = false; render(root); };
   root.querySelector("#el-vplan").onclick = () => { viewPlan = true; render(root); };
+  const btnLab = root.querySelector("#el-labels");
+  if (btnLab) {
+    // le plan n'existe pas encore au moment du 1er affichage du bouton
+    const show = () => {
+      const m = plan?.labels || localStorage.getItem("ac-vanplan-labels") || "compact";
+      btnLab.textContent = LABEL_MODES[m].label;
+    };
+    btnLab.onclick = () => { plan?.cycleLabels(); show(); };
+    show();
+  }
   root.querySelector("#el-png").onclick = () => {
     const svg = root.querySelector("#el-canvas svg");
     if (svg) svgToPNG(svg, viewPlan ? "elec-plan-van.png" : "elec-schema.png");
@@ -451,8 +462,11 @@ export function render(root) {
       if (!w) { el.innerHTML = ""; return; }
       const c = calcFor(w) || {};
       el.innerHTML = `<fieldset class="sel-props"><legend>✏️ Câble</legend><div class="props">
-        <div class="row"><label>Longueur (m)</label><input type="number" id="w-len" value="${w.len || 1}" min="0.5" step="0.1" ${w.autoLen !== false ? "disabled" : ""}></div>
-        <div class="row"><label>Longueur auto</label><input type="checkbox" id="w-auto" ${w.autoLen !== false ? "checked" : ""} title="Calculée depuis le plan 2D du van"> <span class="muted" style="font-size:11px">depuis le plan 2D</span></div>
+        <div class="row"><label>Longueur (m)</label><input type="number" id="w-len" value="${w.len || 1}" min="0.3" step="0.1"></div>
+        <div class="row"><label>Longueur auto</label><input type="checkbox" id="w-auto" ${w.autoLen !== false ? "checked" : ""}> <span class="muted" style="font-size:11px">calculée depuis le plan van</span></div>
+        <p class="muted" style="font-size:11px;margin:2px 0 6px">${w.autoLen !== false
+          ? "Tape une longueur pour la figer (le plan van ne l'écrasera plus)."
+          : "🔒 Longueur figée à la main. Recoche « auto » pour la recalculer."}</p>
         <div class="row"><label>Tension forcée (V)</label><input type="number" id="w-uw" value="${w.Uw || ""}" min="0" step="1" placeholder="auto" style="width:70px" title="Laisse vide = déduit automatiquement. À remplir pour une chaîne de panneaux en série."></div>
         <table class="calc-table">
           <tr><td>Tension</td><td><strong>${c.U || "?"} V</strong></td></tr>
@@ -469,7 +483,13 @@ export function render(root) {
         Fusible = 1,25 × I, ou le courant d'appel s'il est plus grand.
         Il se monte au départ, au plus près de la batterie.</p>
       </div></fieldset>`;
-      el.querySelector("#w-len").onchange = e => { w.len = +e.target.value || 1; save("elec", "Longueur câble"); refresh(); };
+      // saisir une longueur la fige : sinon le plan van l'écraserait aussitôt
+      el.querySelector("#w-len").onchange = e => {
+        w.len = +e.target.value || 1;
+        w.autoLen = false;
+        save("elec", "Longueur câble");
+        refresh();
+      };
       el.querySelector("#w-uw").onchange = e => {
         const v = +e.target.value;
         if (v > 0) w.Uw = v; else delete w.Uw;
@@ -477,7 +497,11 @@ export function render(root) {
       };
       el.querySelector("#w-auto").onchange = e => {
         w.autoLen = e.target.checked;
-        if (w.autoLen && plan) plan.updateAutoLens();
+        if (w.autoLen) {
+          // marche aussi depuis la vue Schéma, où il n'y a pas de plan van
+          const m = autoLenFor(E.nodes.find(n => n.id === w.a), E.nodes.find(n => n.id === w.b));
+          if (m !== null) w.len = m;
+        }
         save("elec", "Longueur câble " + (w.autoLen ? "auto" : "manuelle"));
         refresh();
       };

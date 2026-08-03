@@ -88,7 +88,7 @@ export const BUDGET_CATS = ["Isolation", "Bois & habillage", "Électricité", "C
 // Numéro de révision des données pré-remplies. Incrémenté quand la liste
 // d'achats / le schéma élec de référence change : store.js migre alors les
 // états déjà enregistrés (voir migrate()).
-export const DATA_REV = 3;
+export const DATA_REV = 4;
 
 const B = (cat, name, store, price, qty = 1, notes = "") =>
   ({ id: id(), cat, name, store, price, qty, status: "todo", link: "", notes });
@@ -276,21 +276,23 @@ export const EAU_LIB = [
 ];
 
 const WN = (type, x, y, over = {}) => ({ id: id(), type, x, y, ...over });
-const rempl = WN("remplissage", 60, 40);
-const resv = WN("reservoir", 60, 180);
-const pompeE = WN("pompe", 340, 180);
-const accu = WN("accu", 620, 180);
-const teeE = WN("vanne", 900, 180);
-const robinet = WN("robinet", 1180, 80);
-const evier = WN("evier", 1180, 230);
-const gris = WN("gris", 1180, 380);
-const WP = (a, b, dia) => ({ id: id(), a: a.id, b: b.id, dia });
+// vz / vx = place réelle dans le van (circuit le long de la paroi gauche)
+const rempl   = WN("remplissage", 60, 40,  { vz: -1500, vx: -860 });
+const resv    = WN("reservoir", 60, 180,   { vz: -1250, vx: -620 });
+const pompeE  = WN("pompe", 340, 180,      { vz: -1000, vx: -620 });
+const accu    = WN("accu", 620, 180,       { vz: -800,  vx: -620 });
+const teeE    = WN("vanne", 900, 180,      { vz: -400,  vx: -620 });
+const robinet = WN("robinet", 1180, 80,    { vz: 560,   vx: -520 });
+const evier   = WN("evier", 1180, 230,     { vz: 560,   vx: -620 });
+const gris    = WN("gris", 1180, 380,      { vz: 300,   vx: -750 });
+const WP = (a, b, dia, len) => ({ id: id(), a: a.id, b: b.id, dia, len });
 export const DEFAULT_EAU = {
   params: { consoJour: 15 },
   nodes: [rempl, resv, pompeE, accu, teeE, robinet, evier, gris],
   pipes: [
-    WP(rempl, resv, 38), WP(resv, pompeE, 12), WP(pompeE, accu, 12),
-    WP(accu, teeE, 12), WP(teeE, robinet, 12), WP(robinet, evier, 12), WP(evier, gris, 25),
+    WP(rempl, resv, 38, 0.8), WP(resv, pompeE, 12, 0.6), WP(pompeE, accu, 12, 0.5),
+    WP(accu, teeE, 12, 0.7), WP(teeE, robinet, 12, 1.4), WP(robinet, evier, 12, 0.5),
+    WP(evier, gris, 25, 0.7),
   ],
 };
 

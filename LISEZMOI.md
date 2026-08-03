@@ -244,6 +244,25 @@ panneau de gauche**, encadrés en orange. Tout y est modifiable — nom, rôle,
 alimentation 12 V ou 230 V, puissance, heures par jour, courant d'appel, Ah et
 BMS de la batterie, rendement, longueur et diamètre.
 
+### Longueur des câbles et tuyaux
+
+Le champ **Longueur** est saisissable dans les deux vues, Schéma comme Plan van.
+Dès que tu tapes une valeur, elle est **figée** : le plan van ne l'écrasera plus,
+même si tu déplaces les composants. Recoche **« Longueur auto »** pour revenir à
+la longueur calculée depuis les positions réelles dans le van (chemin à angle
+droit + 30 cm de mou).
+
+### Trop de texte sur le plan van ?
+
+Le bouton **🏷** fait tourner trois densités d'affichage, mémorisées :
+
+- **Compact** (par défaut) — petits textes, tout reste lisible
+- **Tout** — noms et infos câbles en grand
+- **Icônes** — plus aucun texte, on ne voit que le cheminement
+
+Dans tous les cas, chaque étiquette est posée sur une pastille claire pour
+qu'aucun trait ne la barre.
+
 🔗 **Relier** puis clique 2 blocs pour créer un câble/tuyau.
 Molette = zoom, glisser le fond = déplacer la vue.
 
