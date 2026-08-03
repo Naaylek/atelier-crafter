@@ -88,7 +88,7 @@ export const BUDGET_CATS = ["Isolation", "Bois & habillage", "Électricité", "C
 // Numéro de révision des données pré-remplies. Incrémenté quand la liste
 // d'achats / le schéma élec de référence change : store.js migre alors les
 // états déjà enregistrés (voir migrate()).
-export const DATA_REV = 2;
+export const DATA_REV = 3;
 
 const B = (cat, name, store, price, qty = 1, notes = "") =>
   ({ id: id(), cat, name, store, price, qty, status: "todo", link: "", notes });
@@ -213,27 +213,27 @@ export const FUSES = [2, 3, 5, 7.5, 10, 15, 20, 25, 30, 40, 50, 60, 80, 100, 125
 //            calcul automatique des longueurs de câbles
 const EN = (type, x, y, over = {}) => ({ id: id(), type, x, y, ...over });
 const p1    = EN("panneau", 60, 40,  { name: "Panneau solaire 1", vz: -600, vx: 150 });
-const p2    = EN("panneau", 60, 150, { name: "Panneau solaire 2", vz: 200,  vx: 150 });
+const p2    = EN("panneau", 60, 156, { name: "Panneau solaire 2", vz: 200,  vx: 150 });
 // le « coffre élec » : 3 rangées sur toute la largeur de l'arrière du van
-const mppt  = EN("mppt", 300, 95,          { vz: -1080, vx: 760 });
-const alt   = EN("alternateur", 60, 320,   { vz: 1600,  vx: 0 });
-const b2b   = EN("b2b", 300, 320,          { vz: -1080, vx: 380 });
-const sect  = EN("secteur", 60, 450,       { vz: -1080, vx: 20 });
-const bat   = EN("batterie", 560, 250,     { vz: -1600, vx: 380 });
-const shunt = EN("shunt", 560, 400,        { vz: -1600, vx: 20 });
-const coupe = EN("coupe", 760, 400,        { vz: -1350, vx: 20 });
-const bus   = EN("bornier", 760, 250,      { vz: -1350, vx: 380 });
-const fb    = EN("fusebox", 960, 130,      { vz: -1350, vx: 760 });
-const conv  = EN("convertisseur", 960, 560,{ vz: -1600, vx: 760 });
-const frigo = EN("frigo", 1190, 20,        { vz: 350,   vx: 620 });
-const led   = EN("led", 1190, 95,          { vz: -100,  vx: -250 });
-const pompe = EN("pompe", 1190, 170,       { vz: -1150, vx: -620 });
-const fan   = EN("maxxfan", 1190, 245,     { vz: 1050,  vx: 0 });
-const usb   = EN("usb", 1190, 320,         { vz: -700,  vx: -780 });
-const chauf = EN("chauffage", 1190, 395,   { vz: -1500, vx: -550 });
-const ceau  = EN("chauffeeau", 1190, 470,  { vz: 600,   vx: -620 });
-const indu  = EN("induction", 1190, 545,   { vz: 850,   vx: 620 });
-const lap   = EN("load230", 1190, 620, { name: "Laptop / photo / drone", vz: -800, vx: -250 });
+const mppt  = EN("mppt", 320, 98,           { vz: -1080, vx: 760 });
+const alt   = EN("alternateur", 60, 330,    { vz: 1600,  vx: 0 });
+const b2b   = EN("b2b", 320, 330,           { vz: -1080, vx: 380 });
+const sect  = EN("secteur", 320, 470,       { vz: -1080, vx: 20 });
+const bat   = EN("batterie", 600, 260,      { vz: -1600, vx: 380 });
+const shunt = EN("shunt", 600, 400,         { vz: -1600, vx: 20 });
+const coupe = EN("coupe", 860, 400,         { vz: -1350, vx: 20 });
+const bus   = EN("bornier", 860, 260,       { vz: -1350, vx: 380 });
+const fb    = EN("fusebox", 1120, 120,      { vz: -1350, vx: 760 });
+const conv  = EN("convertisseur", 1120, 600,{ vz: -1600, vx: 760 });
+const frigo = EN("frigo", 1400, 20,         { vz: 350,   vx: 620 });
+const led   = EN("led", 1400, 112,          { vz: -100,  vx: -250 });
+const pompe = EN("pompe", 1400, 204,        { vz: -1150, vx: -620 });
+const fan   = EN("maxxfan", 1400, 296,      { vz: 1050,  vx: 0 });
+const usb   = EN("usb", 1400, 388,          { vz: -700,  vx: -780 });
+const chauf = EN("chauffage", 1400, 480,    { vz: -1500, vx: -550 });
+const ceau  = EN("chauffeeau", 1400, 572,   { vz: 600,   vx: -620 });
+const indu  = EN("induction", 1400, 664,    { vz: 850,   vx: 620 });
+const lap   = EN("load230", 1400, 756, { name: "Laptop / photo / drone", vz: -800, vx: -250 });
 
 // len = longueur en mètres. autoLen:false → longueur figée à la main
 // (le plan 2D est vu de dessus : il ignore la hauteur, donc il sous-estime
@@ -276,14 +276,14 @@ export const EAU_LIB = [
 ];
 
 const WN = (type, x, y, over = {}) => ({ id: id(), type, x, y, ...over });
-const rempl = WN("remplissage", 80, 40);
-const resv = WN("reservoir", 80, 160);
-const pompeE = WN("pompe", 330, 160);
-const accu = WN("accu", 560, 160);
-const teeE = WN("vanne", 790, 160);
-const robinet = WN("robinet", 1020, 90);
-const evier = WN("evier", 1020, 220);
-const gris = WN("gris", 1020, 360);
+const rempl = WN("remplissage", 60, 40);
+const resv = WN("reservoir", 60, 180);
+const pompeE = WN("pompe", 340, 180);
+const accu = WN("accu", 620, 180);
+const teeE = WN("vanne", 900, 180);
+const robinet = WN("robinet", 1180, 80);
+const evier = WN("evier", 1180, 230);
+const gris = WN("gris", 1180, 380);
 const WP = (a, b, dia) => ({ id: id(), a: a.id, b: b.id, dia });
 export const DEFAULT_EAU = {
   params: { consoJour: 15 },

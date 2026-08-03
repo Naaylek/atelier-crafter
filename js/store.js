@@ -49,7 +49,28 @@ function migrate(s) {
   // anciens décalages carrosserie par défaut → valeur mesurée sur les essieux
   if (s.van.shell && (s.van.shell.z === 180 || s.van.shell.z === 1100)) s.van.shell.z = SHELL_DEFAULT.z;
   if (!(s.rev >= 2)) migrateRev2(s);
+  if (!(s.rev >= 3)) migrateRev3(s);
   return s;
+}
+
+// rev 3 — les blocs des schémas ont grandi (nom complet sur 2 lignes) :
+// on réétale les positions pour qu'ils ne se recouvrent plus. Seuls x et y
+// bougent ; les valeurs, les câbles et les positions dans le van ne changent pas.
+function respread(list, refs) {
+  const byType = {};
+  refs.forEach(r => (byType[r.type] = byType[r.type] || []).push(r));
+  const seen = {};
+  list.forEach(n => {
+    const i = (seen[n.type] = (seen[n.type] || 0) + 1) - 1;
+    const ref = (byType[n.type] || [])[i];
+    if (ref) { n.x = ref.x; n.y = ref.y; }
+  });
+}
+
+function migrateRev3(s) {
+  respread(s.elec.nodes, DEFAULT_ELEC.nodes);
+  respread(s.eau.nodes, DEFAULT_EAU.nodes);
+  s.rev = 3;
 }
 
 // rev 2 — refonte électricité : batterie 300Ah, onduleur 2200W, chauffage

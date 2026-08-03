@@ -165,6 +165,7 @@ details.warns .warn-list { margin-top: 4px; }
 .wire { stroke-width: 3; fill: none; cursor: pointer; }
 .wire.sel { stroke-width: 5; }
 .wire-label { font-size: 10px; fill: #555; user-select: none; pointer-events: none; }
+.wire-label-bg { fill: var(--bg); opacity: .88; pointer-events: none; }
 .props { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
 .props .row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
 .props label { font-size: 12px; color: var(--muted); min-width: 90px; }

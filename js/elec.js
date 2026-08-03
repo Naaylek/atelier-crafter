@@ -289,7 +289,7 @@ export function render(root) {
       const role = roleOf(n);
       if (role === "load") return `${s.P || 0} W · ${fmt((s.P || 0) / (is230(n) ? 230 : E.params.U), 1)} A · ${s.h || 0} h/j`;
       if (s.type === "panneau") return `${s.P || 0} W · Vmp ${s.U || 18} V`;
-      if (s.type === "batterie") return `${s.Ah || 0} Ah · ${s.chem || "?"} · ${fmt((s.Ah || 0) * E.params.U)} Wh${s.bms ? " · BMS " + s.bms + " A" : ""}`;
+      if (s.type === "batterie") return `${s.Ah || 0} Ah ${s.chem || "?"}${s.bms ? " · BMS " + s.bms + " A" : ""}`;
       if (s.type === "convertisseur") return `${s.P || 0} W · η ${Math.round((s.eff || .85) * 100)}%`;
       if (["mppt", "b2b", "secteur", "alternateur"].includes(s.type)) return `${s.A || 0} A max`;
       return ROLE_NAMES[role] || "";

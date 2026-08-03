@@ -5,6 +5,7 @@
 // À l'écran : van horizontal, arrière à gauche, cabine à droite.
 import { state } from "./store.js";
 import { esc } from "./planning.js";
+import { zoomStep } from "./diagram.js";
 
 const CAB_LEN = 1900; // longueur cabine dessinée (indicatif)
 const MARGIN = 700;   // marge autour du van (composants hors caisson autorisés)
@@ -47,7 +48,7 @@ export class VanPlan {
 
     this.svg.addEventListener("wheel", ev => {
       ev.preventDefault();
-      this.zoomAt(ev.clientX, ev.clientY, ev.deltaY < 0 ? 1.12 : 0.89);
+      this.zoomAt(ev.clientX, ev.clientY, zoomStep(ev));
     }, { passive: false });
 
     this.svg.addEventListener("pointerdown", ev => {

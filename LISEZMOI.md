@@ -242,3 +242,11 @@ Exporte régulièrement (et avant de vider le cache du navigateur !).
 🔗 **Relier** puis clique 2 blocs pour créer un câble/tuyau.
 Clique un bloc/câble pour modifier ses valeurs (W, Ah, longueur, Ø…).
 Molette = zoom, glisser le fond = déplacer la vue.
+
+Le zoom suit l'amplitude réelle du geste : un cran de molette de souris fait
+~11 %, un petit glissement à deux doigts sur le trackpad fait moins de 1 %.
+(Avant, le trackpad appliquait 10 % par micro-évènement et ça partait en vrille.)
+
+Les noms des blocs passent sur deux lignes plutôt que d'être coupés, et chaque
+étiquette de câble est posée sur une pastille claire, au-dessus des blocs :
+plus rien n'est masqué ni barré par un trait.

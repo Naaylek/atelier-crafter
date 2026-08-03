@@ -2,7 +2,19 @@
 // Utilisé par les onglets Électricité et Eau.
 import { esc } from "./planning.js";
 
-const NW = 150, NH = 58; // taille nœud
+const NW = 200, NH = 76; // taille nœud
+
+// Facteur de zoom d'un cran de molette / trackpad.
+// Une molette de souris envoie ~±100 par cran, un trackpad ~±3 en continu :
+// il faut donc suivre l'amplitude réelle, sinon le trackpad zoome comme un fou.
+export function zoomStep(ev) {
+  let dy = ev.deltaY;
+  if (ev.deltaMode === 1) dy *= 16;        // lignes → pixels
+  else if (ev.deltaMode === 2) dy *= 400;  // pages → pixels
+  dy = Math.max(-60, Math.min(60, dy));    // borne les à-coups (max ~11 % par cran)
+  // le pincement du trackpad arrive avec ctrlKey et de toutes petites valeurs
+  return Math.exp(-dy * (ev.ctrlKey ? 0.009 : 0.0018));
+}
 
 export class Diagram {
   /**
@@ -24,12 +36,15 @@ export class Diagram {
       <defs>
         <marker id="dot" markerWidth="8" markerHeight="8" refX="4" refY="4"><circle cx="4" cy="4" r="3" fill="#888"/></marker>
       </defs>
-      <g class="viewport"><g class="edges"></g><g class="nodes"></g></g>
+      <g class="viewport"><g class="edges"></g><g class="nodes"></g><g class="wire-labels"></g></g>
     </svg>`;
     this.svg = container.querySelector("svg");
     this.vp = this.svg.querySelector(".viewport");
     this.gEdges = this.svg.querySelector(".edges");
     this.gNodes = this.svg.querySelector(".nodes");
+    // couche dessinée en dernier : les étiquettes passent AU-DESSUS des blocs,
+    // sinon un bloc voisin en cache la moitié
+    this.gLabels = this.svg.querySelector(".wire-labels");
     this.bindPanZoom();
     this.fit(container);
     this.render();
@@ -131,7 +146,7 @@ export class Diagram {
     this.svg.addEventListener("wheel", ev => {
       ev.preventDefault();
       const w = this.toWorld(ev);
-      const k = Math.min(2.5, Math.max(0.3, this.view.k * (ev.deltaY < 0 ? 1.1 : 0.9)));
+      const k = Math.min(2.5, Math.max(0.3, this.view.k * zoomStep(ev)));
       const r = this.svg.getBoundingClientRect();
       this.view.x = ev.clientX - r.left - w.x * k;
       this.view.y = ev.clientY - r.top - w.y * k;
@@ -173,6 +188,7 @@ export class Diagram {
 
     // edges — routage à angle droit (sortie latérale, coude au milieu)
     this.gEdges.innerHTML = "";
+    this.gLabels.innerHTML = "";
     edges.forEach(e => {
       const a = byId[e.a], b = byId[e.b];
       if (!a || !b) return;
@@ -189,11 +205,16 @@ export class Diagram {
         <path class="wire ${sel ? "sel" : ""}" d="${d}" stroke="${col}" stroke-linejoin="round"/>
         <path d="${d}" stroke="transparent" stroke-width="14" fill="none" style="cursor:pointer"/>
         <circle cx="${sx}" cy="${sy}" r="3.5" fill="${col}"/>
-        <circle cx="${tx}" cy="${ty}" r="3.5" fill="${col}"/>
-        ${(this.o.edgeLabel ? this.o.edgeLabel(e) : []).map((t, i) =>
-          `<text class="wire-label" x="${mx + 4}" y="${(sy + ty) / 2 - 8 + i * 12}" text-anchor="middle">${esc(t)}</text>`).join("")}`;
+        <circle cx="${tx}" cy="${ty}" r="3.5" fill="${col}"/>`;
       g.addEventListener("pointerdown", ev => { ev.stopPropagation(); this.select({ kind: "edge", id: e.id }); });
       this.gEdges.appendChild(g);
+
+      const lab = document.createElementNS(SVGNS, "g");
+      lab.innerHTML = (this.o.edgeLabel ? this.o.edgeLabel(e) : []).map((t, i) =>
+        // posé à GAUCHE du coude, jamais par-dessus le trait
+        `<text class="wire-label" x="${mx - 8}" y="${(sy + ty) / 2 - 7 + i * 12}" text-anchor="end">${esc(t)}</text>`).join("");
+      this.gLabels.appendChild(lab);
+      haloLabels(lab);   // pastille claire derrière chaque étiquette
     });
 
     // nodes
@@ -205,12 +226,16 @@ export class Diagram {
       g.setAttribute("class", "diag-node" + (sel ? " sel" : ""));
       g.setAttribute("transform", `translate(${n.x},${n.y})`);
       const roleCol = this.o.nodeColor ? this.o.nodeColor(n) : "#b7ac9c";
+      // le nom passe sur 2 lignes plutôt que d'être coupé au milieu
+      const lines = wrap(this.o.nodeTitle(n), 23, 2);
+      const ty0 = lines.length > 1 ? 26 : 33;
+      const subY = lines.length > 1 ? 62 : 55;
       g.innerHTML = `
         <rect class="body" width="${NW}" height="${NH}" rx="8" stroke="${roleCol}" ${isLinkSrc ? 'style="stroke:#c96f2f;stroke-dasharray:5 3;stroke-width:2.5"' : ""}/>
         <rect x="0" y="0" width="5" height="${NH}" rx="2.5" fill="${roleCol}"/>
-        <text x="12" y="24" font-size="17">${this.o.nodeIcon(n)}</text>
-        <text x="38" y="22" font-size="12" font-weight="600">${esc(clip(this.o.nodeTitle(n), 16))}</text>
-        <text x="38" y="40" font-size="10.5" fill="#8a8175">${esc(clip(this.o.nodeSub(n) || "", 21))}</text>`;
+        <text x="13" y="${ty0}" font-size="18">${this.o.nodeIcon(n)}</text>
+        ${lines.map((t, i) => `<text x="40" y="${ty0 - 4 + i * 14}" font-size="12" font-weight="600">${esc(t)}</text>`).join("")}
+        <text x="40" y="${subY}" font-size="10.5" fill="#8a8175">${esc(clip(this.o.nodeSub(n) || "", 30))}</text>`;
       g.addEventListener("pointerdown", ev => {
         ev.stopPropagation();
         if (this.linking) {
@@ -247,4 +272,38 @@ export class Diagram {
 }
 
 const clip = (s, n) => s.length > n ? s.slice(0, n - 1) + "…" : s;
+
+// coupe un nom en `max` lignes de `w` caractères, sans casser les mots
+function wrap(s, w, max) {
+  const out = [];
+  let cur = "";
+  for (const mot of String(s || "").split(" ")) {
+    if (!cur) cur = mot;
+    else if ((cur + " " + mot).length <= w) cur += " " + mot;
+    else { out.push(cur); cur = mot; if (out.length === max) break; }
+  }
+  if (cur && out.length < max) out.push(cur);
+  if (out.length === max) out[max - 1] = clip(out[max - 1], w);
+  return out.length ? out : [""];
+}
+
+// Pastille claire derrière chaque étiquette : sans elle, le trait du câble
+// passe au travers du texte et plus rien n'est lisible.
+const SVGNS = "http://www.w3.org/2000/svg";
+function haloLabels(g) {
+  g.querySelectorAll("text.wire-label").forEach(t => {
+    let bb;
+    try { bb = t.getBBox(); } catch { return; }
+    if (!bb.width) return;
+    const r = document.createElementNS(SVGNS, "rect");
+    r.setAttribute("class", "wire-label-bg");
+    r.setAttribute("x", bb.x - 3);
+    r.setAttribute("y", bb.y - 1);
+    r.setAttribute("width", bb.width + 6);
+    r.setAttribute("height", bb.height + 2);
+    r.setAttribute("rx", 3);
+    g.insertBefore(r, t);
+  });
+}
+
 export { NW, NH };
