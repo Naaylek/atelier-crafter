@@ -45,6 +45,7 @@ export function render(root) {
           <button class="btn danger small" id="wa-del" disabled>🗑</button>
           <button class="btn secondary small" id="wa-png">📷 PNG</button>
         </div>
+        <div id="wa-props"></div>
         <fieldset><legend>➕ Ajouter un élément</legend>
           <div class="palette" id="wa-pal" style="max-height:200px;overflow-y:auto"></div>
         </fieldset>
@@ -58,7 +59,6 @@ export function render(root) {
         <fieldset><legend>Paramètres</legend><div class="props">
           <div class="row"><label>Conso / jour</label><input type="number" id="wa-conso" min="1" style="width:70px"> L (à 2 pers.)</div>
         </div></fieldset>
-        <div id="wa-props"></div>
         <div id="wa-bilan"></div>
       </div>
       <div class="editor-canvas" id="wa-canvas"></div>
@@ -159,16 +159,20 @@ export function render(root) {
   function renderProps() {
     const el = root.querySelector("#wa-props");
     if (!selObj) {
-      el.innerHTML = `<p class="muted" style="font-size:12px">${viewPlan
-        ? "Glisse les éléments à leur vraie place dans le van : les longueurs de tuyaux se calculent toutes seules."
-        : "Clique un élément ou un tuyau pour l'éditer.<br>🔗 Relier : clique 2 éléments."}</p>`;
+      el.innerHTML = `<fieldset><legend>✏️ Modifier</legend>
+        <p class="muted" style="font-size:12px;margin:0">
+        <strong>Clique un élément</strong> (ou un tuyau) dans le schéma :
+        ses réglages s'ouvrent ici — nom, volume, débit, diamètre.${viewPlan
+          ? "<br>Glisse-les à leur vraie place dans le van : les longueurs de tuyaux se calculent toutes seules."
+          : "<br>🔗 Relier : clique 2 éléments."}</p></fieldset>`;
       return;
     }
+    root.querySelector(".editor-side").scrollTop = 0;
     if (selKind === "node") {
       const n = E.nodes.find(x => x.id === selObj.id);
       if (!n) { el.innerHTML = ""; return; }
       const s = spec(n);
-      el.innerHTML = `<fieldset><legend>${lib(n.type).icon || ""} ${esc(s.name)}</legend><div class="props">
+      el.innerHTML = `<fieldset class="sel-props"><legend>✏️ ${lib(n.type).icon || ""} ${esc(s.name)}</legend><div class="props">
         <div class="row"><label>Nom</label><input type="text" data-k="name" value="${esc(n.name ?? lib(n.type).name)}" style="width:150px"></div>
         ${["reservoir", "gris", "chauffe", "accu", "autre"].includes(n.type) ? `<div class="row"><label>Volume (L)</label><input type="number" data-k="vol" value="${s.vol || 0}"></div>` : ""}
         ${n.type === "pompe" ? `<div class="row"><label>Débit (L/min)</label><input type="number" data-k="flow" value="${s.flow || 10}"></div>` : ""}
@@ -182,7 +186,7 @@ export function render(root) {
     } else {
       const p = E.pipes.find(x => x.id === selObj.id);
       if (!p) { el.innerHTML = ""; return; }
-      el.innerHTML = `<fieldset><legend>Tuyau</legend><div class="props">
+      el.innerHTML = `<fieldset class="sel-props"><legend>✏️ Tuyau</legend><div class="props">
         <div class="row"><label>Diamètre</label><select id="p-dia">
           ${DIAS.map(d => `<option value="${d}" ${(p.dia || 12) === d ? "selected" : ""}>Ø ${d} mm</option>`).join("")}
         </select></div>

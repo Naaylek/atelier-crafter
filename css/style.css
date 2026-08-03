@@ -166,6 +166,9 @@ details.warns .warn-list { margin-top: 4px; }
 .wire.sel { stroke-width: 5; }
 .wire-label { font-size: 10px; fill: #555; user-select: none; pointer-events: none; }
 .wire-label-bg { fill: var(--bg); opacity: .88; pointer-events: none; }
+/* réglages de l'élément sélectionné : visibles au premier coup d'œil */
+fieldset.sel-props { border-color: var(--accent); background: #fffaf5; }
+fieldset.sel-props > legend { color: var(--accent); font-weight: 700; }
 .props { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
 .props .row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
 .props label { font-size: 12px; color: var(--muted); min-width: 90px; }

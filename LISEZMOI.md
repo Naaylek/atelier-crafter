@@ -239,8 +239,12 @@ Exporte régulièrement (et avant de vider le cache du navigateur !).
 
 ## Schémas élec/eau
 
+**Clique un bloc ou un câble** : ses réglages s'ouvrent aussitôt **en haut du
+panneau de gauche**, encadrés en orange. Tout y est modifiable — nom, rôle,
+alimentation 12 V ou 230 V, puissance, heures par jour, courant d'appel, Ah et
+BMS de la batterie, rendement, longueur et diamètre.
+
 🔗 **Relier** puis clique 2 blocs pour créer un câble/tuyau.
-Clique un bloc/câble pour modifier ses valeurs (W, Ah, longueur, Ø…).
 Molette = zoom, glisser le fond = déplacer la vue.
 
 Le zoom suit l'amplitude réelle du geste : un cran de molette de souris fait

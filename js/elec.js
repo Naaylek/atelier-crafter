@@ -17,7 +17,11 @@ const lib = t => ELEC_LIB.find(l => l.type === t) || {};
 const spec = n => ({ ...lib(n.type), ...n }); // valeurs du nœud écrasent la bibliothèque
 const roleOf = n => n.role || lib(n.type).role || "load";
 // alimenté en 230 V (derrière l'onduleur) ?
-const is230 = n => { const s = spec(n); return s.v230 === true || s.type === "load230"; };
+const is230 = n => {
+  if (n.v230 !== undefined) return !!n.v230;   // choix fait à la main sur le nœud
+  const s = spec(n);
+  return s.v230 === true || s.type === "load230";
+};
 
 // ---------- calculs réseau ----------
 function computeWires() {
@@ -71,8 +75,11 @@ function computeWires() {
     if (role === "load") {
       I = is230(byId[nodeId]) ? (s.P || 0) / 230 : (s.P || 0) / U;
     } else if (s.type === "convertisseur") {
+      // ce que l'onduleur tire = ce qui est branché dessus, mais jamais plus
+      // que ce qu'il sait fournir (au-delà, il se met en sécurité)
       const loads = neighbors(nodeId).filter(x => is230(x.n));
-      const P = loads.length ? loads.reduce((t, x) => t + (spec(x.n).P || 0), 0) : (s.P || 0);
+      const sum = loads.reduce((t, x) => t + (spec(x.n).P || 0), 0);
+      const P = loads.length ? Math.min(sum, s.P || sum) : (s.P || 0);
       I = P / (U * (s.eff || 0.85));
     } else if (s.type === "mppt") {
       // toute la chaîne solaire, panneaux en série compris (le MPPT ne « voit »
@@ -192,6 +199,22 @@ function energyBalance() {
   };
 }
 
+// alerte si les appareils 230V branchés dépassent ce que l'onduleur sait fournir
+function convOverload(n) {
+  if (n.type !== "convertisseur") return "";
+  const E = state.elec;
+  const byId = Object.fromEntries(E.nodes.map(x => [x.id, x]));
+  const voisins = E.wires
+    .filter(w => w.a === n.id || w.b === n.id)
+    .map(w => byId[w.a === n.id ? w.b : w.a])
+    .filter(x => x && is230(x));
+  const sum = voisins.reduce((t, x) => t + (spec(x).P || 0), 0);
+  const rated = +spec(n).P || 0;
+  if (!sum || !rated || sum <= rated) return "";
+  return `<p class="bad" style="font-size:11px;margin:6px 0 0">⚠️ ${fmt(sum)} W branchés dessus
+    pour ${fmt(rated)} W disponibles : tout allumer en même temps le mettra en sécurité.</p>`;
+}
+
 // couleur d'un câble selon sa nature (comme sur un vrai schéma)
 function wireColor(e, calcFor) {
   const c = calcFor(e);
@@ -221,6 +244,7 @@ export function render(root) {
           <button class="btn danger small" id="el-del" disabled>🗑</button>
           <button class="btn secondary small" id="el-png">📷 PNG</button>
         </div>
+        <div id="el-props"></div>
         <fieldset><legend>➕ Ajouter un composant</legend>
           <div class="palette" id="el-pal" style="max-height:200px;overflow-y:auto"></div>
         </fieldset>
@@ -241,7 +265,6 @@ export function render(root) {
             <div class="row"><label>Soleil équiv.</label><input type="number" id="el-sun" step="0.5" min="1" max="8" style="width:60px"> h/j</div>
           </div>
         </fieldset>
-        <div id="el-props"></div>
         <div id="el-bilan"></div>
       </div>
       <div class="editor-canvas" id="el-canvas"></div>
@@ -373,11 +396,17 @@ export function render(root) {
   function renderProps() {
     const el = root.querySelector("#el-props");
     if (!selObj) {
-      el.innerHTML = `<p class="muted" style="font-size:12px">${viewPlan
-        ? "Glisse les composants à leur vraie place dans le van : les longueurs de câbles se calculent toutes seules. Clique un câble pour le détail."
-        : "Clique un composant ou un câble pour l'éditer.<br>🔗 Relier : clique 2 composants.<br>Molette = zoom, fond = déplacer."}</p>`;
+      el.innerHTML = `<fieldset><legend>✏️ Modifier</legend>
+        <p class="muted" style="font-size:12px;margin:0">
+        <strong>Clique un composant</strong> (ou un câble) dans le schéma :
+        ses réglages s'ouvrent ici — nom, puissance, heures par jour, courant
+        d'appel, tout est modifiable.${viewPlan
+          ? "<br>Glisse-les à leur vraie place dans le van : les longueurs de câbles se calculent toutes seules."
+          : "<br>🔗 Relier : clique 2 composants. Molette = zoom, fond = déplacer."}</p></fieldset>`;
       return;
     }
+    // le panneau peut avoir été fait défiler : on remonte sur les réglages
+    root.querySelector(".editor-side").scrollTop = 0;
     if (selKind === "node") {
       const n = E.nodes.find(x => x.id === selObj.id);
       if (!n) { el.innerHTML = ""; return; }
@@ -385,14 +414,18 @@ export function render(root) {
       const role = roleOf(n);
       const F = (label, key, stp = 1) =>
         `<div class="row"><label>${label}</label><input type="number" data-k="${key}" value="${n[key] ?? lib(n.type)[key] ?? 0}" step="${stp}"></div>`;
-      el.innerHTML = `<fieldset><legend>${lib(n.type).icon || ""} ${esc(s.name)}</legend><div class="props">
+      el.innerHTML = `<fieldset class="sel-props"><legend>✏️ ${lib(n.type).icon || ""} ${esc(s.name)}</legend><div class="props">
         <div class="row"><label>Nom</label><input type="text" data-k="name" value="${esc(n.name ?? lib(n.type).name)}" style="width:150px"></div>
-        ${n.type === "autre" ? `<div class="row"><label>Rôle</label><select data-k="role">
+        <div class="row"><label>Rôle</label><select data-k="role">
             ${Object.entries(ROLE_NAMES).map(([k, v]) => `<option value="${k}" ${role === k ? "selected" : ""}>${v}</option>`).join("")}
+          </select></div>
+        ${role === "load" ? `<div class="row"><label>Alimenté en</label><select data-k="v230">
+            <option value="0" ${is230(n) ? "" : "selected"}>12 V (direct)</option>
+            <option value="1" ${is230(n) ? "selected" : ""}>230 V (via onduleur)</option>
           </select></div>` : ""}
         ${role === "load" || n.type === "convertisseur" || n.type === "panneau" || n.type === "autre" ? F("Puissance (W)", "P", 5) : ""}
         ${n.type === "panneau" ? F("Vmp (V)", "U", 0.5) : ""}
-        ${["mppt", "b2b", "secteur", "alternateur"].includes(n.type) || (n.type === "autre" && role === "source") ? F("Courant max (A)", "A", 1) : ""}
+        ${["mppt", "b2b", "secteur", "alternateur"].includes(n.type) || role === "source" ? F("Courant max (A)", "A", 1) : ""}
         ${n.type === "batterie" ? F("Capacité (Ah)", "Ah", 5) : ""}
         ${n.type === "batterie" ? F("BMS — courant max (A)", "bms", 10) : ""}
         ${n.type === "batterie" ? `<div class="row"><label>Chimie</label><select data-k="chem">
@@ -403,11 +436,13 @@ export function render(root) {
         ${role === "load" ? F("Courant d'appel (A)", "Ipeak", 1) : ""}
         ${n.type === "convertisseur" || n.type === "mppt" ? F("Rendement (0-1)", "eff", 0.01) : ""}
         <div class="row"><label>Notes</label><input type="text" data-k="notes" value="${esc(n.notes || "")}" style="width:150px"></div>
+        ${convOverload(n)}
         ${lib(n.type).note ? `<p class="muted" style="font-size:11px;margin:6px 0 0">${esc(lib(n.type).note)}</p>` : ""}
       </div></fieldset>`;
       el.querySelectorAll("[data-k]").forEach(inp => inp.onchange = () => {
         const k = inp.dataset.k;
-        n[k] = inp.type === "number" ? +inp.value : inp.value;
+        n[k] = k === "v230" ? inp.value === "1"
+             : inp.type === "number" ? +inp.value : inp.value;
         save("elec", "Composant modifié : " + spec(n).name);
         refresh();
       });
@@ -415,7 +450,7 @@ export function render(root) {
       const w = E.wires.find(x => x.id === selObj.id);
       if (!w) { el.innerHTML = ""; return; }
       const c = calcFor(w) || {};
-      el.innerHTML = `<fieldset><legend>Câble</legend><div class="props">
+      el.innerHTML = `<fieldset class="sel-props"><legend>✏️ Câble</legend><div class="props">
         <div class="row"><label>Longueur (m)</label><input type="number" id="w-len" value="${w.len || 1}" min="0.5" step="0.1" ${w.autoLen !== false ? "disabled" : ""}></div>
         <div class="row"><label>Longueur auto</label><input type="checkbox" id="w-auto" ${w.autoLen !== false ? "checked" : ""} title="Calculée depuis le plan 2D du van"> <span class="muted" style="font-size:11px">depuis le plan 2D</span></div>
         <div class="row"><label>Tension forcée (V)</label><input type="number" id="w-uw" value="${w.Uw || ""}" min="0" step="1" placeholder="auto" style="width:70px" title="Laisse vide = déduit automatiquement. À remplir pour une chaîne de panneaux en série."></div>
