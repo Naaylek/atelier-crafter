@@ -156,13 +156,23 @@ Le bilan compare aussi l'appel de courant « tout allumé » à cette limite.
 
 Sur une chaîne de panneaux en série, remplis **« Tension forcée »** sur le
 câble qui descend au MPPT (36 V ici) : la section calculée en tient compte.
-### Bilan été / hiver
+### Bilan : saison et usage
 
-Le sélecteur **Saison** (panneau Paramètres) bascule tout le bilan entre
-**☀️ Été** et **❄️ Hiver** : chaque appareil a ses propres heures par jour
-dans les deux cas (le chauffage ne tourne pas l'été, l'éclairage tourne deux
-fois plus l'hiver, le frigo moins). Les heures affichées dans le tableau sont
-celles de la saison choisie, et c'est celles-là que tu modifies.
+Deux réglages indépendants dans le panneau Paramètres :
+
+- **Saison** — **☀️ Été** ou **❄️ Hiver**. Chaque appareil a ses propres heures
+  par jour dans les deux cas (le chauffage ne tourne pas l'été, l'éclairage
+  tourne deux fois plus l'hiver, le frigo moins).
+- **Usage** — **🏖 Courant** ou **💻 Télétravail**. Le télétravail s'applique
+  par-dessus la saison : seuls les appareils qui déclarent des heures de
+  télétravail changent (par défaut, le laptop passe de 2 h à 7 h par jour).
+
+Les heures affichées dans le tableau sont celles de la combinaison choisie, et
+c'est **celles-là** que tu modifies : régler le laptop à 8 h en télétravail ne
+touche pas ses 2 h d'usage courant.
+
+Un petit tableau récapitule les **4 cas** en bas du bilan (été/hiver ×
+courant/télétravail) — c'est le pire des quatre qui dimensionne la batterie.
 
 Le bilan surveille aussi deux choses que le dossier électrique signale :
 

@@ -165,17 +165,40 @@ function computeWires() {
   });
 }
 
-// heures par jour selon la saison choisie (le chauffage ne tourne pas l'été,
-// l'éclairage tourne deux fois plus l'hiver)
-const hoursOf = n => {
+// Heures par jour d'un appareil, selon la saison ET le mode d'usage.
+//  h  = été · hw = hiver (le chauffage ne tourne pas l'été, l'éclairage
+//  tourne deux fois plus l'hiver) · ht = journée de télétravail, qui écrase
+//  les deux quand elle est renseignée (seul le laptop l'est par défaut).
+function hoursOf(n, season, work) {
   const s = spec(n);
-  if (state.elec.params.season === "hiver") return +(s.hw ?? s.h) || 0;
+  if (work && s.ht !== undefined && s.ht !== null) return +s.ht || 0;
+  if (season === "hiver") return +(s.hw ?? s.h) || 0;
   return +s.h || 0;
-};
+}
+
+// quel champ on modifie quand on tape une valeur dans le tableau du bilan
+function hourKey(season, work) {
+  return work ? "ht" : season === "hiver" ? "hw" : "h";
+}
+
+// consommation totale (Wh/j) pour une combinaison saison × usage donnée,
+// pour pouvoir afficher les 4 cas côte à côte sans changer les réglages
+function consoFor(season, work) {
+  const E = state.elec;
+  const U = E.params.U;
+  const inv = E.nodes.find(n => n.type === "convertisseur");
+  const invEff = inv ? (spec(inv).eff || 0.88) : 0.88;
+  const l = E.nodes.filter(n => roleOf(n) === "load")
+    .reduce((t, n) => t + (spec(n).P || 0) * hoursOf(n, season, work) / (is230(n) ? invEff : 1), 0);
+  const idle = E.nodes.reduce((t, n) => t + (+spec(n).Pidle || 0) * 24, 0);
+  return l + idle;
+}
 
 function energyBalance() {
   const E = state.elec;
   const U = E.params.U;
+  const season = E.params.season === "hiver" ? "hiver" : "ete";
+  const work = !!E.params.work;
   // rendement réel de l'onduleur du schéma (les appareils 230V paient sa perte)
   const inv = E.nodes.find(n => n.type === "convertisseur");
   const invEff = inv ? (spec(inv).eff || 0.88) : 0.88;
@@ -183,7 +206,7 @@ function energyBalance() {
     const s = spec(n);
     const v230 = is230(n);
     const eff = v230 ? invEff : 1;
-    const h = hoursOf(n);
+    const h = hoursOf(n, season, work);
     return {
       n, name: s.name, v230, P: s.P || 0, h,
       Wh: (s.P || 0) * h / eff,
@@ -215,9 +238,14 @@ function energyBalance() {
   const solarA = pv / U;
   const chargeTotA = solarA + chargeA;
   const chargeMax = bats.reduce((t, n) => t + (+spec(n).chargeMax || 0), 0);
+  // les 4 cas du dossier : été / hiver × usage courant / télétravail
+  const cases = {
+    eteNormal: consoFor("ete", false), eteWork: consoFor("ete", true),
+    hiverNormal: consoFor("hiver", false), hiverWork: consoFor("hiver", true),
+  };
   return {
     loads, idles, bats, conso, prod, capWh, peakA, bms, chargeA,
-    solarA, chargeTotA, chargeMax,
+    solarA, chargeTotA, chargeMax, season, work, cases,
     autonomy: conso > 0 ? capWh / conso : Infinity,
   };
 }
@@ -290,6 +318,9 @@ export function render(root) {
             <div class="row"><label>Saison</label><select id="el-season">
               <option value="ete">☀️ Été</option><option value="hiver">❄️ Hiver</option>
             </select></div>
+            <div class="row"><label>Usage</label><select id="el-work">
+              <option value="0">🏖 Courant</option><option value="1">💻 Télétravail</option>
+            </select></div>
           </div>
         </fieldset>
         <div id="el-bilan"></div>
@@ -306,6 +337,9 @@ export function render(root) {
   const selSeason = root.querySelector("#el-season");
   selSeason.value = E.params.season || "ete";
   selSeason.onchange = e => { E.params.season = e.target.value; save("elec", "Saison du bilan"); refresh(); };
+  const selWork = root.querySelector("#el-work");
+  selWork.value = E.params.work ? "1" : "0";
+  selWork.onchange = e => { E.params.work = e.target.value === "1"; save("elec", "Mode d'usage du bilan"); refresh(); };
   ["u", "drop", "sun"].forEach(k => {
     root.querySelector("#el-" + k).onchange = e => {
       E.params[{ u: "U", drop: "dropPct", sun: "sunH" }[k]] = +e.target.value;
@@ -454,7 +488,9 @@ export function render(root) {
       const role = roleOf(n);
       const F = (label, key, stp = 1) => {
         // « heures hiver » retombe sur les heures d'été tant qu'elle n'est pas fixée
-        const fb = key === "hw" ? (n.h ?? lib(n.type).h ?? 0) : 0;
+        // « hiver » et « télétravail » retombent sur les heures d'été tant
+        // qu'elles ne sont pas fixées à la main
+        const fb = (key === "hw" || key === "ht") ? (n.h ?? lib(n.type).h ?? 0) : 0;
         const v = n[key] ?? lib(n.type)[key] ?? fb;
         return `<div class="row"><label>${label}</label><input type="number" data-k="${key}" value="${v}" step="${stp}"></div>`;
       };
@@ -479,6 +515,7 @@ export function render(root) {
             <option ${s.chem === "GEL" ? "selected" : ""}>GEL</option></select></div>` : ""}
         ${role === "load" ? F("Heures / jour — été", "h", 0.5) : ""}
         ${role === "load" ? F("Heures / jour — hiver", "hw", 0.5) : ""}
+        ${role === "load" ? F("Heures / jour — télétravail", "ht", 0.5) : ""}
         ${role === "load" ? F("Courant d'appel (A)", "Ipeak", 1) : ""}
         ${n.type === "convertisseur" || n.type === "mppt" ? F("Rendement (0-1)", "eff", 0.01) : ""}
         <div class="row"><label>Notes</label><input type="text" data-k="notes" value="${esc(n.notes || "")}" style="width:150px"></div>
@@ -547,9 +584,10 @@ export function render(root) {
     const b = energyBalance();
     const el = root.querySelector("#el-bilan");
     const ok = b.prod >= b.conso;
-    const hiver = E.params.season === "hiver";
-    const champH = hiver ? "hw" : "h";   // on édite les heures de la saison affichée
-    el.innerHTML = `<fieldset><legend>${hiver ? "❄️" : "☀️"} Bilan énergie / jour — ${hiver ? "hiver" : "été"} <span class="muted" style="font-size:10px">(modifiable)</span></legend>
+    const hiver = b.season === "hiver";
+    const champH = hourKey(b.season, b.work);   // le champ qu'on édite dans le tableau
+    const titre = `${hiver ? "❄️ hiver" : "☀️ été"}${b.work ? " · 💻 télétravail" : ""}`;
+    el.innerHTML = `<fieldset><legend>Bilan énergie / jour — ${titre} <span class="muted" style="font-size:10px">(modifiable)</span></legend>
       <table class="calc-table">
         <tr><th></th><th style="width:52px">W</th><th style="width:46px">h/j</th><th class="right">Wh/j</th></tr>
         ${b.loads.map(l => `<tr data-nid="${l.n.id}">
@@ -562,12 +600,19 @@ export function render(root) {
           <td style="font-size:11px">${fmt(l.P)}</td><td style="font-size:11px">24</td>
           <td class="right">${fmt(l.Wh)}</td></tr>`).join("")}
         <tr><th colspan="3">Consommation totale</th><th class="right">${fmt(b.conso)} Wh/j</th></tr>
+        ${b.work ? `<tr><td colspan="4" class="muted" style="font-size:10px">Les heures que tu modifies ici sont celles des journées de télétravail — l'usage courant n'est pas touché.</td></tr>` : ""}
         <tr><td colspan="3">Production solaire (${E.params.sunH} h × 75%)</td><td class="right ${ok ? "ok" : "bad"}">${fmt(b.prod)} Wh/j</td></tr>
         ${b.bats.map(n => `<tr data-bid="${n.id}">
           <td colspan="2" style="font-size:11px">${esc(spec(n).name)}</td>
           <td><input type="number" class="bl-ah" value="${spec(n).Ah || 0}" step="10" style="width:48px;padding:2px 4px;font-size:11px"></td>
           <td class="right">${fmt((spec(n).Ah || 0) * E.params.U * (spec(n).chem === "LiFePO4" ? 0.8 : 0.5))} Wh ut.</td></tr>`).join("")}
         <tr><th colspan="3">Autonomie sans soleil</th><th class="right">${b.autonomy === Infinity ? "∞" : fmt(b.autonomy, 1) + " j"}</th></tr>
+      </table>
+      <table class="calc-table" style="margin-top:6px">
+        <tr><th></th><th class="right">🏖 Courant</th><th class="right">💻 Télétravail</th></tr>
+        <tr><td>☀️ Été</td><td class="right">${fmt(b.cases.eteNormal)}</td><td class="right">${fmt(b.cases.eteWork)}</td></tr>
+        <tr><td>❄️ Hiver</td><td class="right">${fmt(b.cases.hiverNormal)}</td><td class="right">${fmt(b.cases.hiverWork)}</td></tr>
+        <tr><td colspan="3" class="muted" style="font-size:10px">Wh/j · le pire des cas dimensionne la batterie</td></tr>
       </table>
       <p style="font-size:12px" class="${ok ? "ok" : "bad"}">${ok
         ? "✅ Le solaire couvre la conso journalière."
