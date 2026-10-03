@@ -49,7 +49,7 @@ export const DEFAULT_TASKS = [
   T(2, "Câbler régulateur MPPT → batterie (10 mm², fusible 50 A)", 2),
   T(2, "Installer chargeur booster B2B sur alternateur", 3, "25 mm² sur les 6 m moteur→coffre, fusible 50 A à chaque bout"),
   T(2, "Poser boîte à fusibles 12V + borniers + / −", 2),
-  T(2, "Câbler onduleur (95 mm² + fusible ANL 250 A au ras du +)", 3, "Relier le neutre de sortie au châssis, sinon le différentiel ne sert à rien"),
+  T(2, "Câbler onduleur 500 W (16 mm² + fusible 60 A au ras du +)", 2, "Relier le neutre de sortie au châssis, sinon le différentiel 30 mA ne déclenche pas"),
   T(2, "Poser différentiel 30 mA + prise 230V intérieure", 2),
   T(2, "Poser interrupteurs, spots LED, prises USB", 4),
   T(2, "Tester TOUT le circuit avant de fermer les murs", 2, "Multimètre : tensions, polarités, chutes"),
@@ -68,9 +68,11 @@ export const DEFAULT_TASKS = [
   T(5, "Poser pompe à eau + accumulateur + filtre", 3),
   T(5, "Raccorder évier + évacuation eaux grises", 3),
   T(5, "Tester circuit d'eau (fuites) 24h", 1),
-  T(5, "Installer chauffe-eau 12V Elgena + câble 6 mm² / fusible 25 A", 3, "Verrouiller : jamais en même temps que la plaque induction"),
+  T(5, "Installer chauffe-eau 12V Elgena + câble 6 mm² / fusible 25 A", 3, "2 cycles par jour, 12 L cumulés"),
   T(5, "Installer chauffage Webasto : piquage réservoir, échappement, silencieux", 6, "Homologué ECE R10/R122 → accepté en VASP. Faire poser si doute sur le piquage"),
-  T(5, "Poser plaque induction + son circuit 230V", 2, "Plus de gaz du tout → plus de caisson ventilé ni d'attestation gaz"),
+  T(5, "Poser plaque gaz 2 feux + découpe du plan de travail", 3, "Cuisson au gaz : décision finale, l'induction est abandonnée"),
+  T(5, "Installer le gaz : caisson ventilé, détendeur 28 mbar, lyre INOX", 4, "Grille d'aération vers l'extérieur · NF EN 1949 et NF EN 721 · test à l'eau savonneuse"),
+  T(5, "Poser le détecteur de gaz", 1, "Dans le caisson ou juste à côté"),
   T(6, "Rideaux / occultants cabine et fenêtres", 3),
   T(6, "Finitions bois : ponçage, huile/vernis", 4),
   T(6, "Pesée du van chargé (CU restante)", 1),
@@ -78,17 +80,17 @@ export const DEFAULT_TASKS = [
   T(7, "Remplacer embrayage (~1000 €, garage)", 0, "D'origine à 208 500 km"),
   T(7, "Pare-brise fissuré : activer bris de glace", 1, "franchise à vérifier auprès de l'assureur"),
   T(7, "Diagnostiquer verrouillage automatique bizarre", 2, "Possible bug module de confort"),
-  T(7, "Monter dossier VASP (plans, attestation élec)", 6, "Pas de gaz à bord → pas d'attestation gaz ni de caisson ventilé à justifier"),
+  T(7, "Monter dossier VASP (plans, attestations élec ET gaz)", 6, "Gaz à bord → caisson ventilé et conformité NF EN 1949 / NF EN 721 à justifier"),
   T(7, "Passage DREAL / homologation VASP", 4),
   T(7, "Changer d'assurance → MAIF (VASP)", 1),
 ];
 
-export const BUDGET_CATS = ["Isolation", "Bois & habillage", "Électricité", "Chauffage", "Eau", "Cuisine", "Couchage", "Ouvertures", "Quincaillerie", "Mécanique", "Divers"];
+export const BUDGET_CATS = ["Isolation", "Bois & habillage", "Électricité", "Chauffage", "Gaz", "Eau", "Cuisine", "Couchage", "Ouvertures", "Quincaillerie", "Mécanique", "Divers"];
 
 // Numéro de révision des données pré-remplies. Incrémenté quand la liste
 // d'achats / le schéma élec de référence change : store.js migre alors les
 // états déjà enregistrés (voir migrate()).
-export const DATA_REV = 4;
+export const DATA_REV = 5;
 
 const B = (cat, name, store, price, qty = 1, notes = "") =>
   ({ id: id(), cat, name, store, price, qty, status: "todo", link: "", notes });
@@ -104,27 +106,28 @@ export const DEFAULT_BUDGET = [
   B("Bois & habillage", "Huile dure / vernis bois", "Leroy Merlin", 30, 1),
   // --- Électricité : liste détaillée. price = milieu de fourchette, la
   //     fourchette et le « pourquoi » sont dans les notes.
-  B("Électricité", "Panneau solaire rigide 200W", "AliExpress / Amazon", 165, 2, "300-360 € les deux · ~1520×670 mm · montés EN SÉRIE (36 V) : moins de perte dans le câble, mais un seul panneau à l'ombre pénalise les deux"),
+  B("Électricité", "Panneau solaire 200W identiques ×2 (ex: ExtraSUN Noir)", "AliExpress / Amazon", 165, 2, "300-360 € les deux · ~1480×670 mm · EN SÉRIE, 400 W. Décision finale : 2 et pas 3. Laisser la place du 3e libre au bout du toit, et prendre le même modèle si tu l'ajoutes (sinon le couplage série se dégrade)."),
   B("Électricité", "Rails + pattes + Sikaflex 252 (fixation panneaux)", "Amazon / H2R", 60, 1, "Collage sur les nervures de toit, sans percer"),
   B("Électricité", "Passe-toit étanche double + Sikaflex 522", "Amazon", 35, 1, "Le point qui fuit si c'est bâclé"),
-  B("Électricité", "Câble solaire 6 mm² (10 m) + connecteurs MC4", "123elec / Amazon", 40, 1, "Le calcul donne 2,5 mm², mais les MC4 se sertissent en 4/6 mm²"),
-  B("Électricité", "Régulateur MPPT Victron SmartSolar 100/30", "Victron / Amazon", 140, 1, "100 V entrée max · 30 A sortie · Bluetooth. 400 W crête ≈ 29 A : pile la limite du 30 A"),
+  B("Électricité", "Câble solaire 6 mm² (10 m) + connecteurs MC4", "123elec / Amazon", 40, 1, "6 mm² sur le toit (dossier élec). Le calcul de chute donnerait moins, mais les MC4 se sertissent en 4/6 mm²."),
+  B("Électricité", "Câble MPPT → batterie 10 mm² + fusible 50 A", "123elec", 25, 1, "Dimensionné pour 50 A DÈS MAINTENANT : rien à retirer le jour où tu passes au MPPT 100/50 avec un 3e panneau."),
+  B("Électricité", "Régulateur MPPT Victron SmartSolar 100/30", "Victron / Amazon", 140, 1, "100 V entrée max · 30 A sortie (440 W max en 12 V) · Bluetooth. Suffit pour 400 W. Si un 3e panneau arrive : passer au 100/50 (~180 €), le 100/30 écrêterait au-delà de 440 W."),
   B("Électricité", "Chargeur B2B Victron Orion-Tr Smart 12/12-30A", "Victron / Amazon", 165, 1, "150-180 € · profil LiFePO4 dédié, isolé galvaniquement"),
   B("Électricité", "Fusibles de ligne B2B 50 A ×2 + porte-fusibles", "123elec", 20, 1, "Un à CHAQUE bout : côté batterie moteur et côté batterie auxiliaire"),
   B("Électricité", "Chargeur secteur 230V ~20 A", "À définir", 115, 1, "80-150 € · usage occasionnel (camping avec prise, garage)"),
-  B("Électricité", "Onduleur pur sinus 2000-2200 W isolation galvanique", "À définir", 300, 1, "250-350 € · ⚠️ 2200 W = ~200 A côté 12 V, soit tout le BMS. Voir l'alerte de l'onglet ⚡"),
+  B("Électricité", "Onduleur pur sinus 500 W, isolation galvanique", "À définir", 150, 1, "80-130 € en générique, ~230 € pour un Victron Phoenix 12/500. Décision finale : 500 W suffisent depuis l'abandon de la cuisson électrique (laptop 140 W + chargeur drone 100 W en simultané, avec marge)."),
   B("Électricité", "Batterie LiTime 12V 300Ah LiFePO4", "LiTime", 595, 1, "570-620 € · 3840 Wh · BMS 200 A continu / 800 A pendant 1 s"),
   B("Électricité", "Moniteur de batterie Victron SmartShunt 500A/50mV", "Victron / Amazon", 115, 1, "100-130 € · seul moyen de connaître le vrai % de charge d'une LiFePO4"),
-  B("Électricité", "Fusible ANL 250 A + porte-fusible (batterie → onduleur)", "123elec", 22, 1, "15-30 € · à monter au plus près du + batterie"),
+  B("Électricité", "Fusible 60 A + porte-fusible (batterie → onduleur)", "123elec", 12, 1, "⚠️ Le dossier indique 40 A : trop juste. 500 W ÷ (12 V × 0,88) ≈ 47 A en nominal, un 40 A sauterait. 60 A = 1,25 × 47 A. À monter au plus près du + batterie."),
   B("Électricité", "Boîte à fusibles 12 voies + bornier de masse", "Amazon", 75, 1, "50-100 € · protection de chaque circuit 12 V"),
-  B("Électricité", "Coupe-circuit général 300 A", "Amazon", 30, 1, "20-40 € · coupe tout le 12 V d'un quart de tour"),
+  B("Électricité", "Coupe-circuit général 12V", "Amazon", 30, 1, "20-40 € · coupe tout le 12 V d'un quart de tour · référence à arrêter"),
   B("Électricité", "Borniers de répartition + / − (busbars 300 A)", "123elec", 25, 1, "20-30 € · points de raccordement communs"),
   B("Électricité", "Panneau de commandes (interrupteurs éclairage / pompe / ventilo)", "Amazon", 45, 1, "30-60 € · distinct du monitoring batterie"),
   B("Électricité", "Éclairage LED : 6 plafonniers + 2 bandeaux", "Amazon", 115, 1, "80-150 € · ~20 W cumulé"),
   B("Électricité", "Prises 12V / USB-C ×3", "Amazon", 45, 1, "30-60 €"),
   B("Électricité", "Interrupteur différentiel 30 mA + disjoncteur 230V", "Leroy Merlin", 45, 1, "30-60 € · ⚠️ ne protège QUE si le neutre de sortie de l'onduleur est relié au châssis"),
   B("Électricité", "Prise 230V intérieure + entrée secteur", "Leroy Merlin", 22, 1, "15-30 € · entrée près d'une porte, pas de perçage extérieur"),
-  B("Électricité", "Câble batterie → onduleur 95 mm² (2 × 1,5 m) + cosses serties", "123elec", 130, 1, "Section calculée par l'appli : 95 mm², fusible 250 A. Faire sertir les cosses (pince hydraulique)"),
+  B("Électricité", "Câble batterie → onduleur 16 mm² (2 × 1,5 m) + cosses", "123elec", 25, 1, "Section calculée par l'appli : 16 mm². Le dossier dit 6-10 mm² : ça tient la chute de tension, mais pas le fusible 60 A — d'où le 16 mm². Divisé par 5 depuis l'abandon de l'induction."),
   B("Électricité", "Câbles souples 1,5 / 2,5 / 6 / 10 / 25 mm² + gaines annelées", "123elec", 200, 1, "150-250 € · sections exactes câble par câble dans l'onglet ⚡"),
   B("Électricité", "Cosses, porte-fusibles, fusibles à lames, gaine thermo, colliers", "Amazon / 123elec", 60, 1, ""),
   B("Chauffage", "Chauffage diesel Webasto Air Top 2000 STC", "Webasto / revendeur", 800, 1, "Prix confirmé · 0,9-2 kW THERMIQUES mais seulement ~30 W électriques · homologué ECE R10/R122 → accepté en VASP"),
@@ -137,8 +140,13 @@ export const DEFAULT_BUDGET = [
   B("Eau", "Évier inox + mitigeur", "Amazon", 70, 1),
   B("Eau", "Chauffe-eau 12V Elgena KB6 (6 L / 200 W)", "H2R Equipements", 375, 1, "300-450 € · ~315 Wh par chauffe : le 2e plus gros poste de conso après la plaque"),
   B("Cuisine", "Frigo compresseur 12V (Vitrifrigo C51i / Dometic CRX50)", "H2R / Amazon", 550, 1, "400-700 € · ⚠️ modèle non tranché · ~0,3-0,5 kWh/24 h"),
-  B("Cuisine", "Plaque induction Brunner 2 foyers 2000 W", "Brunner / H2R", 145, 1, "130-160 € à confirmer · remplace le gaz → plus de bouteille, plus de caisson ventilé, dossier VASP simplifié"),
   B("Cuisine", "Charnières, coulisses tiroirs, push-locks", "Amazon", 60, 1),
+  B("Gaz", "Plaque gaz 2 feux encastrable", "À définir", 130, 1, "Découpe dans le plan de travail · référence à arrêter. Une planche posée par-dessus redonne un plan continu (pas parfaitement plat vu le relief des grilles, mais fonctionnel)."),
+  B("Gaz", "Bouteille butane 6 kg (1 en service + 1 de secours)", "Station / Leroy Merlin", 40, 2, "Consigne + recharge · autonomie estimée 30-40 jours par bouteille à 2 repas/jour. Butane plutôt que propane : autorisé en caisson INTÉRIEUR ventilé (<7 kg), plus simple qu\'un coffre extérieur obligatoire."),
+  B("Gaz", "Détendeur fixe 28 mbar butane", "Leroy Merlin", 25, 1, "Détendeur CLIPSÉ directement sur la bouteille interdit en camping-car homologué : il faut un détendeur fixe relié par une lyre."),
+  B("Gaz", "Lyre + tuyau INOX", "Leroy Merlin / H2R", 45, 1, "INOX recommandé : durée de vie illimitée contre 5 ans pour le caoutchouc → un point de non-conformité en moins aux contrôles VASP périodiques."),
+  B("Gaz", "Caisson gaz ventilé + grille d\'aération vers l\'extérieur", "DIY", 60, 1, "Obligatoire : ventilation basse débouchant à l\'extérieur. Normes NF EN 1949 (installation GPL) et NF EN 721 (ventilation)."),
+  B("Gaz", "Détecteur de gaz", "Amazon", 40, 1, "Dans le caisson ou à proximité immédiate."),
   B("Couchage", "Matelas mousse HR 140×190 (à découper)", "Emma / IKEA", 200, 1),
   B("Couchage", "Lattes de sommier", "IKEA", 30, 1),
   B("Ouvertures", "Lanterneau MaxxFan Deluxe", "H2R Equipements", 330, 1),
@@ -158,38 +166,50 @@ export const DEFAULT_BUDGET = [
 // Ipeak       → courant d'appel au démarrage (A) : c'est LUI qui dimensionne
 //               le fusible, sinon un fusible calculé sur le courant nominal
 //               saute à chaque démarrage (bougie du Webasto, compresseur du frigo)
+// h / hw      → heures par jour en ÉTÉ / en HIVER (le chauffage ne tourne pas
+//               l'été, l'éclairage tourne deux fois plus l'hiver…)
+// Pidle       → consommation propre permanente (W), comptée 24 h/24
 export const ELEC_LIB = [
   { type: "panneau",  icon: "☀️", name: "Panneau solaire 200W", role: "source", U: 18, P: 200,
-    note: "Vmp ~18 V · Voc ~24 V · 2 en série = 36 V (≈48 V à vide, ~54 V par grand froid)" },
+    note: "Décision finale : 2 panneaux identiques en série (400 W), ~1480×670 mm. Vmp ~18 V, Voc ~24 V → ~50 V en série (~60 V par grand froid). Place du 3e laissée libre au toit." },
   { type: "mppt",     icon: "🔆", name: "MPPT Victron 100/30", role: "conv", U: 12, A: 30, eff: 0.97,
-    note: "100 V entrée max · 30 A sortie · Bluetooth" },
+    note: "100 V entrée max · 30 A sortie (440 W max en 12 V) · suffisant pour 400 W. Si un 3e panneau arrive → remplacer par un 100/50." },
   { type: "b2b",      icon: "🔄", name: "Chargeur B2B Orion-Tr 12/12-30", role: "source", U: 12, A: 30,
-    note: "profil LiFePO4 · isolé galvaniquement · un fusible à chaque extrémité" },
+    note: "profil LiFePO4 dédié, isolé galvaniquement · compense une partie du déficit solaire en roulant · un fusible à chaque extrémité" },
   { type: "alternateur", icon: "🚐", name: "Alternateur / batterie moteur", role: "source", U: 12, A: 140 },
   { type: "secteur",  icon: "🔌", name: "Chargeur secteur 230V", role: "source", U: 12, A: 20,
-    note: "usage occasionnel (camping avec prise, garage)" },
-  { type: "batterie", icon: "🔋", name: "Batterie LiTime 300Ah", role: "storage", U: 12, Ah: 300, chem: "LiFePO4", bms: 200,
-    note: "3840 Wh · BMS 200 A continu / 800 A pendant 1 s" },
-  { type: "shunt",    icon: "📟", name: "SmartShunt 500A (moniteur)", role: "dist", U: 12,
-    note: "sur le − de la batterie : TOUS les négatifs, charge comprise, passent côté charge" },
-  { type: "coupe",    icon: "⛔", name: "Coupe-circuit général 300A", role: "dist", U: 12 },
+    note: "usage occasionnel · prise 230 V à l'INTÉRIEUR du van, près d'une porte (pas de prise extérieure, pas de perçage)" },
+  { type: "batterie", icon: "🔋", name: "Batterie LiTime 300Ah", role: "storage", U: 12, Ah: 300, chem: "LiFePO4", bms: 200, chargeMax: 60,
+    note: "3840 Wh · BMS 200 A continu / 800 A pendant 1 s · courant de CHARGE max conseillé ~60 A" },
+  { type: "shunt",    icon: "📟", name: "SmartShunt 500A + écran", role: "dist", U: 12, Pidle: 3,
+    note: "sur le − de la batterie : TOUS les négatifs, charge comprise, passent côté charge. Consomme ~3 W en permanence (72 Wh/j)." },
+  { type: "coupe",    icon: "⛔", name: "Coupe-circuit général", role: "dist", U: 12,
+    note: "coupure principale du circuit 12 V · référence à arrêter" },
   { type: "bornier",  icon: "🔗", name: "Bornier + / − (busbar)", role: "dist", U: 12 },
-  { type: "fusebox",  icon: "🧯", name: "Boîte à fusibles 12V", role: "dist", U: 12 },
-  { type: "convertisseur", icon: "⚡", name: "Onduleur pur sinus 2200W", role: "conv", U: 12, P: 2200, eff: 0.88,
-    note: "isolation galvanique · relier le neutre de sortie au châssis, sinon le différentiel 30 mA ne déclenche pas" },
-  { type: "frigo",    icon: "🧊", name: "Frigo compresseur 12V", role: "load", U: 12, P: 50, h: 8, Ipeak: 12,
-    note: "~0,3-0,5 kWh/24 h · compresseur ~1/3 du temps · pic au démarrage du compresseur" },
-  { type: "chauffeeau", icon: "♨️", name: "Chauffe-eau 12V Elgena KB6", role: "load", U: 12, P: 200, h: 3.2, Ipeak: 18,
-    note: "6 L · ~315 Wh par chauffe · 1 cycle/personne/jour · JAMAIS en même temps que la plaque" },
-  { type: "pompe",    icon: "💧", name: "Pompe à eau 12V", role: "load", U: 12, P: 60, h: 0.3, Ipeak: 8 },
-  { type: "led",      icon: "💡", name: "Éclairage LED (6 spots + 2 bandeaux)", role: "load", U: 12, P: 20, h: 4 },
-  { type: "maxxfan",  icon: "🌀", name: "Lanterneau Maxxair", role: "load", U: 12, P: 30, h: 4, Ipeak: 5 },
-  { type: "usb",      icon: "📱", name: "Prises USB / 12V", role: "load", U: 12, P: 30, h: 3 },
-  { type: "chauffage",icon: "🔥", name: "Chauffage diesel Webasto AT2000", role: "load", U: 12, P: 30, h: 6, Ipeak: 16,
-    note: "⚠️ 30 W ÉLECTRIQUES — les 0,9-2 kW annoncés sont THERMIQUES · pic bougie ~16 A au démarrage" },
-  { type: "induction",icon: "🍳", name: "Plaque induction 2 foyers", role: "load", U: 230, v230: true, P: 2000, h: 0.5,
-    note: "2000 W · jamais en même temps que le chauffe-eau ni la charge du laptop" },
-  { type: "load230",  icon: "🖥", name: "Appareil 230V (laptop, photo…)", role: "load", U: 230, v230: true, P: 100, h: 3 },
+  { type: "fusebox",  icon: "🧯", name: "Boîte à fusibles 12V", role: "dist", U: 12,
+    note: "protection individuelle de chaque départ 12 V · référence à arrêter" },
+  { type: "convertisseur", icon: "⚡", name: "Onduleur pur sinus 500W", role: "conv", U: 12, P: 500, eff: 0.88,
+    note: "Décision finale : 500 W suffisent depuis l'abandon de la cuisson électrique. Couvre le laptop (jusqu'à 140 W en charge) + chargeur drone (~100 W) simultanément, avec marge. Isolation galvanique requise ; relier le neutre de sortie au châssis, sinon le différentiel 30 mA ne déclenche pas." },
+  { type: "frigo",    icon: "🧊", name: "Frigo compresseur 12V", role: "load", U: 12, P: 45, h: 10, hw: 7, Ipeak: 12,
+    note: "~0,3-0,5 kWh/24 h · modèle NON TRANCHÉ : Vitrifrigo C51i / Dometic CRX50 / Dometic Série 10" },
+  { type: "chauffeeau", icon: "♨️", name: "Chauffe-eau 12V Elgena KB6", role: "load", U: 12, P: 200, h: 2, hw: 2, Ipeak: 18,
+    note: "6 L · 1 cycle par personne et par jour, 12 L cumulés · ou équivalent" },
+  { type: "pompe",    icon: "💧", name: "Pompe à eau 12V", role: "load", U: 12, P: 60, h: 1, hw: 1, Ipeak: 8,
+    note: "référence à arrêter" },
+  { type: "led",      icon: "💡", name: "Éclairage LED (6 plafonniers + 2 bandeaux)", role: "load", U: 12, P: 20, h: 2.5, hw: 5,
+    note: "~20 W cumulé · deux fois plus d'heures l'hiver · références à arrêter" },
+  { type: "maxxfan",  icon: "🌀", name: "Lanterneau Maxxair", role: "load", U: 12, P: 30, h: 5, hw: 3, Ipeak: 5,
+    note: "toit, avant du véhicule · SEULE ventilation du van, extraction de la douche comprise" },
+  { type: "usb",      icon: "📱", name: "Prises 12V / USB", role: "load", U: 12, P: 30, h: 3, hw: 3,
+    note: "téléphones, tablette" },
+  { type: "chauffage",icon: "🔥", name: "Chauffage diesel Webasto AT2000", role: "load", U: 12, P: 20, h: 0, hw: 8, Ipeak: 16,
+    note: "⚠️ 20 W ÉLECTRIQUES (bougie + ventilo) — les 0,9-2 kW annoncés sont THERMIQUES · diesel prélevé sur le réservoir véhicule · homologué ECE R10/R122 → VASP · ne tourne pas l'été" },
+  { type: "load230",  icon: "🖥", name: "Laptop (MacBook Pro)", role: "load", U: 230, v230: true, P: 100, h: 2, hw: 2,
+    note: "100 W en usage courant, jusqu'à 140 W en charge (16 pouces)" },
+  { type: "divers230",icon: "📷", name: "Photo / drone (occasionnel)", role: "load", U: 230, v230: true, P: 50, h: 1, hw: 1,
+    note: "charge ponctuelle · jusqu'à ~100 W pour une batterie de drone" },
+  { type: "induction",icon: "🍳", name: "Plaque induction 2 foyers", role: "load", U: 230, v230: true, P: 2000, h: 0.5, hw: 0.5,
+    note: "⚠️ ABANDONNÉE : la cuisson est passée au gaz (butane). Gardée dans la bibliothèque au cas où tu reviendrais dessus — il faudrait alors un onduleur ~2200 W et du 95 mm²." },
   { type: "autre",    icon: "🔧", name: "Autre composant", role: "load", U: 12, P: 0, h: 0, note: "rôle modifiable" },
 ];
 
@@ -232,8 +252,8 @@ const fan   = EN("maxxfan", 1400, 296,      { vz: 1050,  vx: 0 });
 const usb   = EN("usb", 1400, 388,          { vz: -700,  vx: -780 });
 const chauf = EN("chauffage", 1400, 480,    { vz: -1500, vx: -550 });
 const ceau  = EN("chauffeeau", 1400, 572,   { vz: 600,   vx: -620 });
-const indu  = EN("induction", 1400, 664,    { vz: 850,   vx: 620 });
-const lap   = EN("load230", 1400, 756, { name: "Laptop / photo / drone", vz: -800, vx: -250 });
+const lap   = EN("load230", 1400, 664,     { vz: -800,  vx: -250 });
+const divers= EN("divers230", 1400, 756,   { vz: -700,  vx: -250 });
 
 // len = longueur en mètres. autoLen:false → longueur figée à la main
 // (le plan 2D est vu de dessus : il ignore la hauteur, donc il sous-estime
@@ -241,9 +261,9 @@ const lap   = EN("load230", 1400, 756, { name: "Laptop / photo / drone", vz: -80
 // Uw = tension forcée sur le câble (ici la tension de la chaîne solaire).
 const EW = (a, b, len, over = {}) => ({ id: id(), a: a.id, b: b.id, len, ...over });
 export const DEFAULT_ELEC = {
-  params: { U: 12, dropPct: 3, sunH: 4 },
+  params: { U: 12, dropPct: 3, sunH: 4, season: "ete" },
   nodes: [p1, p2, mppt, alt, b2b, sect, bat, shunt, coupe, bus, fb, conv,
-          frigo, led, pompe, fan, usb, chauf, ceau, indu, lap],
+          frigo, led, pompe, fan, usb, chauf, ceau, lap, divers],
   wires: [
     EW(p1, p2, 1.2, { autoLen: false }),          // les 2 panneaux en série
     EW(p2, mppt, 5, { autoLen: false, Uw: 36 }),  // chaîne 36 V → passe-toit → MPPT
@@ -255,7 +275,7 @@ export const DEFAULT_ELEC = {
     EW(bus, conv, 0.9), EW(bus, fb, 0.7),
     EW(fb, frigo, 1.9), EW(fb, led, 2.4), EW(fb, pompe, 1.7), EW(fb, fan, 3.3),
     EW(fb, usb, 2.3), EW(fb, chauf, 1.9), EW(fb, ceau, 3.4),
-    EW(conv, indu, 3), EW(conv, lap, 1.6),
+    EW(conv, lap, 2.1), EW(conv, divers, 2.2),
   ],
 };
 
@@ -327,7 +347,7 @@ export const VS3D_LAYOUTS = [
   {name:"Matelas banquette D",cat:"lit",l:1200,w:700,h:150,x:540,z:-909,y:400,place:"floor",color:"#8d6e63"},
   {name:"Dînette centrale (mode lit)",cat:"lit",l:900,w:380,h:150,x:0,z:-909,y:400,place:"floor",color:"#8d6e63"},
   {name:"Meuble cuisine 2 portes",cat:"cuisine",l:1000,w:600,h:900,x:590,z:520,place:"floor",color:"#66994d"},
-  {name:"Plaque induction 2 feux",cat:"cuisine",l:500,w:350,h:100,x:586,z:757,place:"counter",color:"#66994d"},
+  {name:"Plaque gaz 2 feux",cat:"cuisine",l:500,w:350,h:100,x:586,z:757,place:"counter",color:"#66994d"},
   {name:"Frigo Norcold N410",cat:"cuisine",l:530,w:530,h:830,x:590,z:164,place:"floor",color:"#66994d"},
   {name:"Meuble tiroirs cuisine",cat:"cuisine",l:1000,w:600,h:900,x:-574,z:370,place:"floor",color:"#66994d"},
   {name:"Évier Ruvati",cat:"eau",l:500,w:450,h:250,x:-516,z:555,place:"counter",color:"#4d94cc"},
@@ -362,6 +382,6 @@ export const VS3D_LAYOUTS = [
   {name:"Bouteille gaz 2kg",cat:"cuisine",l:250,w:250,h:350,x:659,z:995,place:"floor",color:"#66994d"},
   {name:"Meuble haut",cat:"rangement",l:800,w:350,h:350,x:-640,z:1228,place:"upper",color:"#b8875b"},
   {name:"Meuble haut",cat:"rangement",l:800,w:350,h:350,x:92,z:1424,place:"upper",color:"#b8875b"},
-  {name:"Plaque induction 2 feux",cat:"cuisine",l:500,w:350,h:100,x:566,z:1404,place:"counter",color:"#66994d"},
+  {name:"Plaque gaz 2 feux",cat:"cuisine",l:500,w:350,h:100,x:566,z:1404,place:"counter",color:"#66994d"},
  ]},
 ];

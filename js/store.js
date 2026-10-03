@@ -51,6 +51,7 @@ function migrate(s) {
   if (!(s.rev >= 2)) migrateRev2(s);
   if (!(s.rev >= 3)) migrateRev3(s);
   if (!(s.rev >= 4)) migrateRev4(s);
+  if (!(s.rev >= 5)) migrateRev5(s);
   return s;
 }
 
@@ -72,6 +73,59 @@ function migrateRev3(s) {
   respread(s.elec.nodes, DEFAULT_ELEC.nodes);
   respread(s.eau.nodes, DEFAULT_EAU.nodes);
   s.rev = 3;
+}
+
+// rev 5 — dossier électrique définitif (oct. 2026) : cuisson repassée au GAZ,
+// onduleur 2200 W → 500 W, bilan conso recalculé été / hiver.
+// Les lignes de budget déjà cochées « acheté » et les tâches faites sont gardées.
+const REV5_DROP = [
+  "Onduleur pur sinus 2000-2200 W isolation galvanique",
+  "Câble batterie → onduleur 95 mm² (2 × 1,5 m) + cosses serties",
+  "Fusible ANL 250 A + porte-fusible (batterie → onduleur)",
+  "Coupe-circuit général 300 A",
+  "Panneau solaire rigide 200W",
+  "Régulateur MPPT Victron SmartSolar 100/30",
+  "Câble solaire 6 mm² (10 m) + connecteurs MC4",
+  "Plaque induction Brunner 2 foyers 2000 W",
+];
+const REV5_TASKS = {
+  "Câbler onduleur (95 mm² + fusible ANL 250 A au ras du +)":
+    "Câbler onduleur 500 W (16 mm² + fusible 60 A au ras du +)",
+  "Poser plaque induction + son circuit 230V":
+    "Poser plaque gaz 2 feux + découpe du plan de travail",
+  "Monter dossier VASP (plans, attestation élec)":
+    "Monter dossier VASP (plans, attestations élec ET gaz)",
+};
+const REV5_NEW_TASKS = [
+  "Installer le gaz : caisson ventilé, détendeur 28 mbar, lyre INOX",
+  "Poser le détecteur de gaz",
+];
+
+function migrateRev5(s) {
+  const B = s.budget;
+  if (!B.cats.includes("Gaz")) {
+    const at = B.cats.indexOf("Chauffage");
+    B.cats.splice(at >= 0 ? at + 1 : B.cats.length, 0, "Gaz");
+  }
+  B.items = B.items.filter(it => !(REV5_DROP.includes(it.name) && it.status !== "done"));
+  const have = new Set(B.items.map(it => it.name));
+  DEFAULT_BUDGET
+    .filter(b => ["Électricité", "Gaz", "Cuisine"].includes(b.cat) && !have.has(b.name))
+    .forEach(b => B.items.push({ ...JSON.parse(JSON.stringify(b)), id: uid() }));
+
+  // le schéma élec est entièrement redéfini par le dossier
+  s.elec = JSON.parse(JSON.stringify(DEFAULT_ELEC));
+
+  const P = s.planning;
+  P.tasks.forEach(t => {
+    if (t.status !== "done" && REV5_TASKS[t.name]) t.name = REV5_TASKS[t.name];
+  });
+  const names = new Set(P.tasks.map(t => t.name));
+  DEFAULT_TASKS
+    .filter(t => REV5_NEW_TASKS.includes(t.name) && !names.has(t.name))
+    .forEach(t => P.tasks.push({ ...JSON.parse(JSON.stringify(t)), id: uid() }));
+
+  s.rev = 5;
 }
 
 // rev 4 — les éléments du circuit d'eau n'avaient pas de place définie dans le

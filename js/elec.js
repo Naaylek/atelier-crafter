@@ -75,11 +75,13 @@ function computeWires() {
     if (role === "load") {
       I = is230(byId[nodeId]) ? (s.P || 0) / 230 : (s.P || 0) / U;
     } else if (s.type === "convertisseur") {
-      // ce que l'onduleur tire = ce qui est branché dessus, mais jamais plus
-      // que ce qu'il sait fournir (au-delà, il se met en sécurité)
+      // Le câble et le fusible d'un onduleur se dimensionnent sur sa puissance
+      // NOMINALE, pas sur ce qui est branché aujourd'hui : il doit pouvoir
+      // débiter tout ce qu'il sait faire sans que le fusible lâche.
+      // (Le trop-plein d'appareils branchés est signalé à part, voir convOverload.)
       const loads = neighbors(nodeId).filter(x => is230(x.n));
       const sum = loads.reduce((t, x) => t + (spec(x.n).P || 0), 0);
-      const P = loads.length ? Math.min(sum, s.P || sum) : (s.P || 0);
+      const P = (+s.P || 0) > 0 ? +s.P : sum;
       I = P / (U * (s.eff || 0.85));
     } else if (s.type === "mppt") {
       // toute la chaîne solaire, panneaux en série compris (le MPPT ne « voit »
@@ -163,6 +165,14 @@ function computeWires() {
   });
 }
 
+// heures par jour selon la saison choisie (le chauffage ne tourne pas l'été,
+// l'éclairage tourne deux fois plus l'hiver)
+const hoursOf = n => {
+  const s = spec(n);
+  if (state.elec.params.season === "hiver") return +(s.hw ?? s.h) || 0;
+  return +s.h || 0;
+};
+
 function energyBalance() {
   const E = state.elec;
   const U = E.params.U;
@@ -173,28 +183,41 @@ function energyBalance() {
     const s = spec(n);
     const v230 = is230(n);
     const eff = v230 ? invEff : 1;
+    const h = hoursOf(n);
     return {
-      n, name: s.name, v230, P: s.P || 0, h: s.h || 0,
-      Wh: (s.P || 0) * (s.h || 0) / eff,
+      n, name: s.name, v230, P: s.P || 0, h,
+      Wh: (s.P || 0) * h / eff,
       A12: (s.P || 0) / (v230 ? U * invEff : U),  // ce que ça tire côté batterie
     };
   });
-  const conso = loads.reduce((t, l) => t + l.Wh, 0);
+  // appareils qui consomment en permanence sans être des « consommateurs »
+  // au sens du schéma : le shunt / écran de monitoring, typiquement
+  const idles = E.nodes.filter(n => (+spec(n).Pidle || 0) > 0).map(n => {
+    const s = spec(n);
+    return { n, name: s.name, P: +s.Pidle, Wh: +s.Pidle * 24, A12: +s.Pidle / U };
+  });
+  const conso = loads.reduce((t, l) => t + l.Wh, 0) + idles.reduce((t, l) => t + l.Wh, 0);
   const panels = E.nodes.filter(n => n.type === "panneau");
-  const prod = panels.reduce((t, n) => t + (spec(n).P || 0), 0) * E.params.sunH * 0.75;
+  const pv = panels.reduce((t, n) => t + (spec(n).P || 0), 0);
+  const prod = pv * E.params.sunH * 0.75;
   const bats = E.nodes.filter(n => n.type === "batterie");
   const capWh = bats.reduce((t, n) => {
     const s = spec(n);
     return t + (s.Ah || 0) * U * (s.chem === "LiFePO4" ? 0.8 : 0.5);
   }, 0);
   // appel de courant si TOUT fonctionnait en même temps, vs limite du BMS
-  const peakA = loads.reduce((t, l) => t + l.A12, 0);
+  const peakA = loads.reduce((t, l) => t + l.A12, 0) + idles.reduce((t, l) => t + l.A12, 0);
   const bms = bats.reduce((t, n) => t + (+spec(n).bms || 0), 0);
   // recharge en roulant : seul le B2B compte (le chargeur secteur suppose une prise)
   const chargeA = E.nodes.filter(n => n.type === "b2b")
     .reduce((t, n) => t + (+spec(n).A || 0), 0);
+  // charge cumulée solaire + B2B vs ce que la batterie accepte
+  const solarA = pv / U;
+  const chargeTotA = solarA + chargeA;
+  const chargeMax = bats.reduce((t, n) => t + (+spec(n).chargeMax || 0), 0);
   return {
-    loads, bats, conso, prod, capWh, peakA, bms, chargeA,
+    loads, idles, bats, conso, prod, capWh, peakA, bms, chargeA,
+    solarA, chargeTotA, chargeMax,
     autonomy: conso > 0 ? capWh / conso : Infinity,
   };
 }
@@ -264,6 +287,9 @@ export function render(root) {
               <select id="el-u"><option value="12">12 V</option><option value="24">24 V</option></select></div>
             <div class="row"><label>Chute max</label><input type="number" id="el-drop" step="0.5" min="1" max="10" style="width:60px"> %</div>
             <div class="row"><label>Soleil équiv.</label><input type="number" id="el-sun" step="0.5" min="1" max="8" style="width:60px"> h/j</div>
+            <div class="row"><label>Saison</label><select id="el-season">
+              <option value="ete">☀️ Été</option><option value="hiver">❄️ Hiver</option>
+            </select></div>
           </div>
         </fieldset>
         <div id="el-bilan"></div>
@@ -277,6 +303,9 @@ export function render(root) {
   root.querySelector("#el-u").value = E.params.U;
   root.querySelector("#el-drop").value = E.params.dropPct;
   root.querySelector("#el-sun").value = E.params.sunH;
+  const selSeason = root.querySelector("#el-season");
+  selSeason.value = E.params.season || "ete";
+  selSeason.onchange = e => { E.params.season = e.target.value; save("elec", "Saison du bilan"); refresh(); };
   ["u", "drop", "sun"].forEach(k => {
     root.querySelector("#el-" + k).onchange = e => {
       E.params[{ u: "U", drop: "dropPct", sun: "sunH" }[k]] = +e.target.value;
@@ -423,8 +452,12 @@ export function render(root) {
       if (!n) { el.innerHTML = ""; return; }
       const s = spec(n);
       const role = roleOf(n);
-      const F = (label, key, stp = 1) =>
-        `<div class="row"><label>${label}</label><input type="number" data-k="${key}" value="${n[key] ?? lib(n.type)[key] ?? 0}" step="${stp}"></div>`;
+      const F = (label, key, stp = 1) => {
+        // « heures hiver » retombe sur les heures d'été tant qu'elle n'est pas fixée
+        const fb = key === "hw" ? (n.h ?? lib(n.type).h ?? 0) : 0;
+        const v = n[key] ?? lib(n.type)[key] ?? fb;
+        return `<div class="row"><label>${label}</label><input type="number" data-k="${key}" value="${v}" step="${stp}"></div>`;
+      };
       el.innerHTML = `<fieldset class="sel-props"><legend>✏️ ${lib(n.type).icon || ""} ${esc(s.name)}</legend><div class="props">
         <div class="row"><label>Nom</label><input type="text" data-k="name" value="${esc(n.name ?? lib(n.type).name)}" style="width:150px"></div>
         <div class="row"><label>Rôle</label><select data-k="role">
@@ -438,12 +471,14 @@ export function render(root) {
         ${n.type === "panneau" ? F("Vmp (V)", "U", 0.5) : ""}
         ${["mppt", "b2b", "secteur", "alternateur"].includes(n.type) || role === "source" ? F("Courant max (A)", "A", 1) : ""}
         ${n.type === "batterie" ? F("Capacité (Ah)", "Ah", 5) : ""}
-        ${n.type === "batterie" ? F("BMS — courant max (A)", "bms", 10) : ""}
+        ${n.type === "batterie" ? F("BMS — décharge max (A)", "bms", 10) : ""}
+        ${n.type === "batterie" ? F("Charge max conseillée (A)", "chargeMax", 5) : ""}
         ${n.type === "batterie" ? `<div class="row"><label>Chimie</label><select data-k="chem">
             <option ${s.chem === "LiFePO4" ? "selected" : ""}>LiFePO4</option>
             <option ${s.chem === "AGM" ? "selected" : ""}>AGM</option>
             <option ${s.chem === "GEL" ? "selected" : ""}>GEL</option></select></div>` : ""}
-        ${role === "load" ? F("Utilisation (h/j)", "h", 0.5) : ""}
+        ${role === "load" ? F("Heures / jour — été", "h", 0.5) : ""}
+        ${role === "load" ? F("Heures / jour — hiver", "hw", 0.5) : ""}
         ${role === "load" ? F("Courant d'appel (A)", "Ipeak", 1) : ""}
         ${n.type === "convertisseur" || n.type === "mppt" ? F("Rendement (0-1)", "eff", 0.01) : ""}
         <div class="row"><label>Notes</label><input type="text" data-k="notes" value="${esc(n.notes || "")}" style="width:150px"></div>
@@ -512,13 +547,19 @@ export function render(root) {
     const b = energyBalance();
     const el = root.querySelector("#el-bilan");
     const ok = b.prod >= b.conso;
-    el.innerHTML = `<fieldset><legend>☀️ Bilan énergie / jour <span class="muted" style="font-size:10px">(modifiable)</span></legend>
+    const hiver = E.params.season === "hiver";
+    const champH = hiver ? "hw" : "h";   // on édite les heures de la saison affichée
+    el.innerHTML = `<fieldset><legend>${hiver ? "❄️" : "☀️"} Bilan énergie / jour — ${hiver ? "hiver" : "été"} <span class="muted" style="font-size:10px">(modifiable)</span></legend>
       <table class="calc-table">
         <tr><th></th><th style="width:52px">W</th><th style="width:46px">h/j</th><th class="right">Wh/j</th></tr>
         ${b.loads.map(l => `<tr data-nid="${l.n.id}">
           <td style="font-size:11px">${esc(l.name)}${l.v230 ? ' <span class="muted">230V</span>' : ""}</td>
           <td><input type="number" class="bl-p" value="${l.P}" step="5" style="width:48px;padding:2px 4px;font-size:11px"></td>
           <td><input type="number" class="bl-h" value="${l.h}" step="0.5" style="width:42px;padding:2px 4px;font-size:11px"></td>
+          <td class="right">${fmt(l.Wh)}</td></tr>`).join("")}
+        ${b.idles.map(l => `<tr>
+          <td style="font-size:11px">${esc(l.name)} <span class="muted">veille</span></td>
+          <td style="font-size:11px">${fmt(l.P)}</td><td style="font-size:11px">24</td>
           <td class="right">${fmt(l.Wh)}</td></tr>`).join("")}
         <tr><th colspan="3">Consommation totale</th><th class="right">${fmt(b.conso)} Wh/j</th></tr>
         <tr><td colspan="3">Production solaire (${E.params.sunH} h × 75%)</td><td class="right ${ok ? "ok" : "bad"}">${fmt(b.prod)} Wh/j</td></tr>
@@ -531,20 +572,27 @@ export function render(root) {
       <p style="font-size:12px" class="${ok ? "ok" : "bad"}">${ok
         ? "✅ Le solaire couvre la conso journalière."
         : `⚠️ Déficit de ${fmt(b.conso - b.prod)} Wh/j.${b.chargeA
-            ? ` Il faut ${fmt((b.conso - b.prod) / (b.chargeA * E.params.U), 1)} h de route par jour pour le combler (chargeurs : ${fmt(b.chargeA)} A).`
-            : ""} Sinon : plus de panneaux, ou moins de conso.`}</p>
+            ? ` Il faut ${fmt((b.conso - b.prod) / (b.chargeA * E.params.U), 1)} h de route par jour pour le combler (B2B : ${fmt(b.chargeA)} A).`
+            : ""}`}</p>
       ${b.bms ? `<table class="calc-table" style="margin-top:6px">
         <tr><td>Appel si tout tourne ensemble</td><td class="right"><strong>${fmt(b.peakA)} A</strong></td></tr>
         <tr><td>Limite du BMS batterie</td><td class="right"><strong>${fmt(b.bms)} A</strong></td></tr>
       </table>
       <p style="font-size:12px" class="${b.peakA > b.bms ? "bad" : "ok"}">${b.peakA > b.bms
-        ? `⚠️ ${fmt(b.peakA - b.bms)} A de trop : le BMS coupera. Tu ne pourras pas tout faire tourner en même temps — plaque induction et chauffe-eau notamment.`
-        : "✅ Même tout allumé, on reste sous la limite du BMS."}</p>` : ""}
+        ? `⚠️ ${fmt(b.peakA - b.bms)} A de trop : le BMS coupera, tu ne pourras pas tout faire tourner ensemble.`
+        : `✅ Même tout allumé (${fmt(b.peakA)} A), on reste largement sous le BMS.`}</p>` : ""}
+      ${b.chargeMax ? `<table class="calc-table" style="margin-top:6px">
+        <tr><td>Charge cumulée solaire + B2B</td><td class="right"><strong>${fmt(b.chargeTotA)} A</strong> <span class="muted">(${fmt(b.solarA)} + ${fmt(b.chargeA)})</span></td></tr>
+        <tr><td>Charge max acceptée par la batterie</td><td class="right"><strong>${fmt(b.chargeMax)} A</strong></td></tr>
+      </table>
+      <p style="font-size:12px" class="${b.chargeTotA > b.chargeMax ? "bad" : "ok"}">${b.chargeTotA > b.chargeMax
+        ? `⚠️ ${fmt(b.chargeTotA - b.chargeMax)} A au-dessus en plein soleil ET en roulant. À brider sur le MPPT ou le B2B — à valider avec l'électricien.`
+        : "✅ Solaire et B2B ensemble restent sous la charge max de la batterie."}</p>` : ""}
     </fieldset>`;
     el.querySelectorAll("tr[data-nid]").forEach(tr => {
       const n = E.nodes.find(x => x.id === tr.dataset.nid);
       tr.querySelector(".bl-p").onchange = e => { n.P = +e.target.value || 0; save("elec", "Bilan : " + spec(n).name); refresh(); };
-      tr.querySelector(".bl-h").onchange = e => { n.h = +e.target.value || 0; save("elec", "Bilan : " + spec(n).name); refresh(); };
+      tr.querySelector(".bl-h").onchange = e => { n[champH] = +e.target.value || 0; save("elec", "Bilan : " + spec(n).name); refresh(); };
     });
     el.querySelectorAll("tr[data-bid]").forEach(tr => {
       const n = E.nodes.find(x => x.id === tr.dataset.bid);

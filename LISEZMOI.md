@@ -101,6 +101,8 @@ dans `js/secret.js` par la sortie. Demande-moi, c'est immédiat.
   durées, dates, statuts. Coche au fur et à mesure.
 - **💶 Budget** — liste d'achats pré-remplie (~7 200 € hors mécanique), par
   catégorie, avec magasins, prix et notes. Coche = acheté. Modifie tout.
+  Catégories **Gaz** (cuisson butane) et **Chauffage** (Webasto) séparées de
+  l'électricité, pour voir où part vraiment l'argent.
 - **⚡ Électricité** — deux vues : **🗺 Schéma** (câbles à angles droits,
   couleurs par type : jaune = solaire, rouge = 12V, orange = alternateur,
   violet = 230V) et **🚐 Plan van** (vue de dessus : glisse chaque composant
@@ -109,6 +111,24 @@ dans `js/secret.js` par la sortie. Demande-moi, c'est immédiat.
   appareil, Ah et BMS des batteries).
   ➕ palette pour ajouter des composants (dont « Autre composant » libre),
   🗑 ou ⌫ pour supprimer.
+
+- **🔥 Chauffage** (budget) — Webasto Air Top 2000 STC. Attention : les
+  0,9-2 kW annoncés sont **thermiques**. Côté électrique, il ne tire que
+  ~20 W (et ~16 A pendant les 30 s de préchauffage bougie), 8 h/j l'hiver
+  et rien l'été.
+
+- **💧 Eau** — mêmes deux vues (schéma + plan van vue de dessus, longueurs
+  de tuyaux auto). Couleurs : bleu = froide, rouge = chaude (chauffe-eau),
+  gris = évacuation. Diamètres Ø10-38, bilan eau modifiable (volumes),
+  autonomie en jours, métrage total de tuyau.
+- **🚐 Van 3D** — ton Crafter aux dimensions EXACTES (3365×1780×1650 mm,
+  passages de roues, 48,5 cm derrière les roues) + carrosserie 3D réelle en
+  transparence. Drag & drop des meubles, redimensionnement, rotation,
+  détection de chevauchements, cotes atelier (distance aux parois),
+  vues Dessus/Gauche/Droite/Arrière/Avant, export PNG.
+  Tes 2 idées vanspace3D sont pré-importées (approximatives — à ajuster).
+
+## ⚡ Comment l'électricité est calculée
 
 ### Comment la section de chaque câble est choisie
 
@@ -136,20 +156,19 @@ Le bilan compare aussi l'appel de courant « tout allumé » à cette limite.
 
 Sur une chaîne de panneaux en série, remplis **« Tension forcée »** sur le
 câble qui descend au MPPT (36 V ici) : la section calculée en tient compte.
-- **🔥 Chauffage** (budget) — Webasto Air Top 2000 STC. Attention : les
-  0,9-2 kW annoncés sont **thermiques**. Côté électrique, il ne tire que
-  ~30 W (et ~16 A pendant les 30 s de préchauffage bougie).
-- **💧 Eau** — mêmes deux vues (schéma + plan van vue de dessus, longueurs
-  de tuyaux auto). Couleurs : bleu = froide, rouge = chaude (chauffe-eau),
-  gris = évacuation. Diamètres Ø10-38, bilan eau modifiable (volumes),
-  autonomie en jours, métrage total de tuyau.
-- **🚐 Van 3D** — ton Crafter aux dimensions EXACTES (3365×1780×1650 mm,
-  passages de roues, 48,5 cm derrière les roues) + carrosserie 3D réelle en
-  transparence. Drag & drop des meubles, redimensionnement, rotation,
-  détection de chevauchements, cotes atelier (distance aux parois),
-  vues Dessus/Gauche/Droite/Arrière/Avant, export PNG.
-  Tes 2 idées vanspace3D sont pré-importées (approximatives — à ajuster).
+### Bilan été / hiver
 
+Le sélecteur **Saison** (panneau Paramètres) bascule tout le bilan entre
+**☀️ Été** et **❄️ Hiver** : chaque appareil a ses propres heures par jour
+dans les deux cas (le chauffage ne tourne pas l'été, l'éclairage tourne deux
+fois plus l'hiver, le frigo moins). Les heures affichées dans le tableau sont
+celles de la saison choisie, et c'est celles-là que tu modifies.
+
+Le bilan surveille aussi deux choses que le dossier électrique signale :
+
+- **l'appel de courant** si tout tourne en même temps, contre la limite du BMS ;
+- **la charge cumulée** solaire + B2B, contre le courant de charge que la
+  batterie accepte (~60 A pour la LiTime 300 Ah).
 ## Raccourcis Van 3D
 
 | Action | Commande |
