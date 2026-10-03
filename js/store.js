@@ -52,6 +52,7 @@ function migrate(s) {
   if (!(s.rev >= 3)) migrateRev3(s);
   if (!(s.rev >= 4)) migrateRev4(s);
   if (!(s.rev >= 5)) migrateRev5(s);
+  if (!(s.rev >= 6)) migrateRev6(s);
   return s;
 }
 
@@ -73,6 +74,40 @@ function migrateRev3(s) {
   respread(s.elec.nodes, DEFAULT_ELEC.nodes);
   respread(s.eau.nodes, DEFAULT_EAU.nodes);
   s.rev = 3;
+}
+
+// rev 6 — le 3e panneau solaire est acté (600 W) : MPPT 100/50 à la place du
+// 100/30, B2B bridé à 20 A, et le soleil d'hiver distingué de celui d'été.
+const REV6_DROP = [
+  "Panneau solaire 200W identiques ×2 (ex: ExtraSUN Noir)",
+  "Rails + pattes + Sikaflex 252 (fixation panneaux)",
+  "Régulateur MPPT Victron SmartSolar 100/30",
+  "Câble MPPT → batterie 10 mm² + fusible 50 A",
+];
+const REV6_TASKS = {
+  "Fixer 2 panneaux solaires sur le toit (rails + colle)":
+    "Fixer 3 panneaux solaires sur le toit (rails + colle)",
+};
+
+function migrateRev6(s) {
+  const B = s.budget;
+  B.items = B.items.filter(it => !(REV6_DROP.includes(it.name) && it.status !== "done"));
+  const have = new Set(B.items.map(it => it.name));
+  DEFAULT_BUDGET
+    .filter(b => b.cat === "Électricité" && !have.has(b.name))
+    .forEach(b => B.items.push({ ...JSON.parse(JSON.stringify(b)), id: uid() }));
+  // le B2B garde son nom mais doit maintenant être bridé : on rafraîchit sa note
+  const ref = DEFAULT_BUDGET.find(b => b.name.startsWith("Chargeur B2B Victron"));
+  const mien = B.items.find(it => it.name === ref.name);
+  if (ref && mien && mien.status !== "done") mien.notes = ref.notes;
+
+  // schéma élec redéfini (3e panneau, MPPT 100/50, B2B à 20 A)
+  s.elec = JSON.parse(JSON.stringify(DEFAULT_ELEC));
+
+  s.planning.tasks.forEach(t => {
+    if (t.status !== "done" && REV6_TASKS[t.name]) t.name = REV6_TASKS[t.name];
+  });
+  s.rev = 6;
 }
 
 // rev 5 — dossier électrique définitif (oct. 2026) : cuisson repassée au GAZ,

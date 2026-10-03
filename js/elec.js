@@ -153,7 +153,11 @@ function computeWires() {
     //    (bougie du Webasto, démarrage compresseur), sinon 1,25 × I nominal.
     const farSpec = spec(byId[far]);
     const peak = roleOf(byId[far]) === "load" ? +farSpec.Ipeak || 0 : 0;
-    const Ifuse = Math.max(I * 1.25, peak);
+    // Un chargeur (MPPT, B2B, chargeur secteur) ne PEUT PAS dépasser son
+    // courant de sortie : la marge de 25 % des consommateurs, qui couvre leur
+    // variabilité, n'a pas lieu d'être. 10 % suffisent.
+    const limite = (roleOf(byId[far]) === "source" || farSpec.type === "mppt") && (+farSpec.A || 0) > 0;
+    const Ifuse = Math.max(I * (limite ? 1.1 : 1.25), peak);
     let fuse = U > 48 ? null : (FUSES.find(f => f >= Ifuse) || null);
 
     // 5. un fusible ne protège que s'il est en dessous de ce que le câble tient
@@ -222,7 +226,10 @@ function energyBalance() {
   const conso = loads.reduce((t, l) => t + l.Wh, 0) + idles.reduce((t, l) => t + l.Wh, 0);
   const panels = E.nodes.filter(n => n.type === "panneau");
   const pv = panels.reduce((t, n) => t + (spec(n).P || 0), 0);
-  const prod = pv * E.params.sunH * 0.75;
+  // le soleil d'hiver n'est pas celui d'été : sans ça l'appli annoncerait
+  // un excédent en janvier
+  const sunH = season === "hiver" ? (+E.params.sunHw || 1.6) : (+E.params.sunH || 4);
+  const prod = pv * sunH * 0.75;
   const bats = E.nodes.filter(n => n.type === "batterie");
   const capWh = bats.reduce((t, n) => {
     const s = spec(n);
@@ -234,8 +241,13 @@ function energyBalance() {
   // recharge en roulant : seul le B2B compte (le chargeur secteur suppose une prise)
   const chargeA = E.nodes.filter(n => n.type === "b2b")
     .reduce((t, n) => t + (+spec(n).A || 0), 0);
-  // charge cumulée solaire + B2B vs ce que la batterie accepte
-  const solarA = pv / U;
+  // Charge solaire réelle : ce que les panneaux rendent à la tension de charge
+  // (~14,4 V en LiFePO4), plafonné par la sortie max du régulateur — et non
+  // la puissance crête divisée par 12 V, qui surestime.
+  const mpptA = E.nodes.filter(n => n.type === "mppt").reduce((t, n) => t + (+spec(n).A || 0), 0);
+  const mpptEff = E.nodes.find(n => n.type === "mppt") ? (spec(E.nodes.find(n => n.type === "mppt")).eff || 0.97) : 0.97;
+  const solarRaw = pv * mpptEff / 14.4;
+  const solarA = mpptA > 0 ? Math.min(solarRaw, mpptA) : solarRaw;
   const chargeTotA = solarA + chargeA;
   const chargeMax = bats.reduce((t, n) => t + (+spec(n).chargeMax || 0), 0);
   // les 4 cas du dossier : été / hiver × usage courant / télétravail
@@ -314,7 +326,8 @@ export function render(root) {
             <div class="row"><label>Tension réseau</label>
               <select id="el-u"><option value="12">12 V</option><option value="24">24 V</option></select></div>
             <div class="row"><label>Chute max</label><input type="number" id="el-drop" step="0.5" min="1" max="10" style="width:60px"> %</div>
-            <div class="row"><label>Soleil équiv.</label><input type="number" id="el-sun" step="0.5" min="1" max="8" style="width:60px"> h/j</div>
+            <div class="row"><label>Soleil équiv. été</label><input type="number" id="el-sun" step="0.5" min="0" max="10" style="width:60px"> h/j</div>
+            <div class="row"><label>Soleil équiv. hiver</label><input type="number" id="el-sunw" step="0.1" min="0" max="10" style="width:60px"> h/j</div>
             <div class="row"><label>Saison</label><select id="el-season">
               <option value="ete">☀️ Été</option><option value="hiver">❄️ Hiver</option>
             </select></div>
@@ -334,6 +347,9 @@ export function render(root) {
   root.querySelector("#el-u").value = E.params.U;
   root.querySelector("#el-drop").value = E.params.dropPct;
   root.querySelector("#el-sun").value = E.params.sunH;
+  const inSunW = root.querySelector("#el-sunw");
+  inSunW.value = E.params.sunHw ?? 1.6;
+  inSunW.onchange = e => { E.params.sunHw = +e.target.value || 1.6; save("elec", "Soleil d'hiver"); refresh(); };
   const selSeason = root.querySelector("#el-season");
   selSeason.value = E.params.season || "ete";
   selSeason.onchange = e => { E.params.season = e.target.value; save("elec", "Saison du bilan"); refresh(); };
@@ -601,7 +617,7 @@ export function render(root) {
           <td class="right">${fmt(l.Wh)}</td></tr>`).join("")}
         <tr><th colspan="3">Consommation totale</th><th class="right">${fmt(b.conso)} Wh/j</th></tr>
         ${b.work ? `<tr><td colspan="4" class="muted" style="font-size:10px">Les heures que tu modifies ici sont celles des journées de télétravail — l'usage courant n'est pas touché.</td></tr>` : ""}
-        <tr><td colspan="3">Production solaire (${E.params.sunH} h × 75%)</td><td class="right ${ok ? "ok" : "bad"}">${fmt(b.prod)} Wh/j</td></tr>
+        <tr><td colspan="3">Production solaire (${hiver ? (E.params.sunHw ?? 1.6) : E.params.sunH} h × 75%)</td><td class="right ${ok ? "ok" : "bad"}">${fmt(b.prod)} Wh/j</td></tr>
         ${b.bats.map(n => `<tr data-bid="${n.id}">
           <td colspan="2" style="font-size:11px">${esc(spec(n).name)}</td>
           <td><input type="number" class="bl-ah" value="${spec(n).Ah || 0}" step="10" style="width:48px;padding:2px 4px;font-size:11px"></td>
@@ -630,8 +646,8 @@ export function render(root) {
         <tr><td>Charge cumulée solaire + B2B</td><td class="right"><strong>${fmt(b.chargeTotA)} A</strong> <span class="muted">(${fmt(b.solarA)} + ${fmt(b.chargeA)})</span></td></tr>
         <tr><td>Charge max acceptée par la batterie</td><td class="right"><strong>${fmt(b.chargeMax)} A</strong></td></tr>
       </table>
-      <p style="font-size:12px" class="${b.chargeTotA > b.chargeMax ? "bad" : "ok"}">${b.chargeTotA > b.chargeMax
-        ? `⚠️ ${fmt(b.chargeTotA - b.chargeMax)} A au-dessus en plein soleil ET en roulant. À brider sur le MPPT ou le B2B — à valider avec l'électricien.`
+      <p style="font-size:12px" class="${b.chargeTotA > b.chargeMax + 1 ? "bad" : "ok"}">${b.chargeTotA > b.chargeMax + 1
+        ? `⚠️ ${fmt(b.chargeTotA - b.chargeMax)} A au-dessus en plein soleil ET en roulant. À brider sur le MPPT ou le B2B.`
         : "✅ Solaire et B2B ensemble restent sous la charge max de la batterie."}</p>` : ""}
     </fieldset>`;
     el.querySelectorAll("tr[data-nid]").forEach(tr => {

@@ -43,7 +43,7 @@ export const DEFAULT_TASKS = [
   T(1, "Isoler plafond (Armaflex 25mm)", 4),
   T(1, "Isoler portes arrière et coulissante", 3),
   T(2, "Percer + poser passe-toit câbles panneaux solaires", 2, "Étanchéité Sikaflex 522 !"),
-  T(2, "Fixer 2 panneaux solaires sur le toit (rails + colle)", 4),
+  T(2, "Fixer 3 panneaux solaires sur le toit (rails + colle)", 5, "Grand côté en travers · 2010 mm pour 2065 mm dispo : mesurer avant de coller"),
   T(2, "Tirer les câbles (gaines) avant l'habillage des murs", 6, "Prévoir du mou et repérer chaque câble"),
   T(2, "Installer batterie 300Ah + coupe-circuit 300 A + SmartShunt", 3, "Tous les négatifs (charge comprise) côté charge du shunt"),
   T(2, "Câbler régulateur MPPT → batterie (10 mm², fusible 50 A)", 2),
@@ -90,7 +90,7 @@ export const BUDGET_CATS = ["Isolation", "Bois & habillage", "Électricité", "C
 // Numéro de révision des données pré-remplies. Incrémenté quand la liste
 // d'achats / le schéma élec de référence change : store.js migre alors les
 // états déjà enregistrés (voir migrate()).
-export const DATA_REV = 5;
+export const DATA_REV = 6;
 
 const B = (cat, name, store, price, qty = 1, notes = "") =>
   ({ id: id(), cat, name, store, price, qty, status: "todo", link: "", notes });
@@ -106,13 +106,13 @@ export const DEFAULT_BUDGET = [
   B("Bois & habillage", "Huile dure / vernis bois", "Leroy Merlin", 30, 1),
   // --- Électricité : liste détaillée. price = milieu de fourchette, la
   //     fourchette et le « pourquoi » sont dans les notes.
-  B("Électricité", "Panneau solaire 200W identiques ×2 (ex: ExtraSUN Noir)", "AliExpress / Amazon", 165, 2, "300-360 € les deux · ~1480×670 mm · EN SÉRIE, 400 W. Décision finale : 2 et pas 3. Laisser la place du 3e libre au bout du toit, et prendre le même modèle si tu l'ajoutes (sinon le couplage série se dégrade)."),
-  B("Électricité", "Rails + pattes + Sikaflex 252 (fixation panneaux)", "Amazon / H2R", 60, 1, "Collage sur les nervures de toit, sans percer"),
+  B("Électricité", "Panneau solaire 200W identiques ×3 (ex: ExtraSUN Noir)", "AliExpress / Amazon", 165, 3, "~1480×670 mm · EN SÉRIE, 600 W. ⚠️ RÈGLE D'ACHAT : Voc ≤ 27 V par panneau (×3 + correction grand froid = ≤ 91 V, sous les 100 V du MPPT). Vérifier la fiche technique avant de commander. 3×670 = 2010 mm pour 2065 mm dispo après le Maxxair."),
+  B("Électricité", "Rails + pattes + Sikaflex 252 (fixation 3 panneaux)", "Amazon / H2R", 85, 1, "Collage sur les nervures de toit, sans percer · panneaux posés grand côté en travers"),
   B("Électricité", "Passe-toit étanche double + Sikaflex 522", "Amazon", 35, 1, "Le point qui fuit si c'est bâclé"),
   B("Électricité", "Câble solaire 6 mm² (10 m) + connecteurs MC4", "123elec / Amazon", 40, 1, "6 mm² sur le toit (dossier élec). Le calcul de chute donnerait moins, mais les MC4 se sertissent en 4/6 mm²."),
-  B("Électricité", "Câble MPPT → batterie 10 mm² + fusible 50 A", "123elec", 25, 1, "Dimensionné pour 50 A DÈS MAINTENANT : rien à retirer le jour où tu passes au MPPT 100/50 avec un 3e panneau."),
-  B("Électricité", "Régulateur MPPT Victron SmartSolar 100/30", "Victron / Amazon", 140, 1, "100 V entrée max · 30 A sortie (440 W max en 12 V) · Bluetooth. Suffit pour 400 W. Si un 3e panneau arrive : passer au 100/50 (~180 €), le 100/30 écrêterait au-delà de 440 W."),
-  B("Électricité", "Chargeur B2B Victron Orion-Tr Smart 12/12-30A", "Victron / Amazon", 165, 1, "150-180 € · profil LiFePO4 dédié, isolé galvaniquement"),
+  B("Électricité", "Câble MPPT → batterie 16 mm² + fusible 60 A", "123elec", 30, 1, "Sortie max du 100/50 = 50 A. Le dossier dit 10 mm² / 50 A : ça passe tout juste (10 mm² tient 52 A). 16 mm² + 60 A = la préconisation Victron pour ce modèle, et le fusible ne risque plus de fatiguer."),
+  B("Électricité", "Régulateur MPPT Victron SmartSolar 100/50", "Victron / Amazon", 180, 1, "100 V entrée max · 50 A sortie (720 W max en 12 V) · Bluetooth. Obligatoire avec 600 W : le 100/30 plafonne à 440 W et écrêterait les pics."),
+  B("Électricité", "Chargeur B2B Victron Orion-Tr Smart 12/12-30A", "Victron / Amazon", 165, 1, "150-180 € · profil LiFePO4 dédié, isolé galvaniquement · ⚙️ à BRIDER à 20 A dans VictronConnect pour tenir sous les 60 A de charge de la batterie"),
   B("Électricité", "Fusibles de ligne B2B 50 A ×2 + porte-fusibles", "123elec", 20, 1, "Un à CHAQUE bout : côté batterie moteur et côté batterie auxiliaire"),
   B("Électricité", "Chargeur secteur 230V ~20 A", "À définir", 115, 1, "80-150 € · usage occasionnel (camping avec prise, garage)"),
   B("Électricité", "Onduleur pur sinus 500 W, isolation galvanique", "À définir", 150, 1, "80-130 € en générique, ~230 € pour un Victron Phoenix 12/500. Décision finale : 500 W suffisent depuis l'abandon de la cuisson électrique (laptop 140 W + chargeur drone 100 W en simultané, avec marge)."),
@@ -171,16 +171,16 @@ export const DEFAULT_BUDGET = [
 // Pidle       → consommation propre permanente (W), comptée 24 h/24
 export const ELEC_LIB = [
   { type: "panneau",  icon: "☀️", name: "Panneau solaire 200W", role: "source", U: 18, P: 200,
-    note: "Décision finale : 2 panneaux identiques en série (400 W), ~1480×670 mm. Vmp ~18 V, Voc ~24 V → ~50 V en série (~60 V par grand froid). Place du 3e laissée libre au toit." },
-  { type: "mppt",     icon: "🔆", name: "MPPT Victron 100/30", role: "conv", U: 12, A: 30, eff: 0.97,
-    note: "100 V entrée max · 30 A sortie (440 W max en 12 V) · suffisant pour 400 W. Si un 3e panneau arrive → remplacer par un 100/50." },
-  { type: "b2b",      icon: "🔄", name: "Chargeur B2B Orion-Tr 12/12-30", role: "source", U: 12, A: 30,
-    note: "profil LiFePO4 dédié, isolé galvaniquement · compense une partie du déficit solaire en roulant · un fusible à chaque extrémité" },
+    note: "3 panneaux identiques en SÉRIE (600 W), ~1480×670 mm, posés grand côté en travers du toit. 3×670 = 2010 mm pour 2065 mm dispo après le Maxxair (marge 55 mm) × 1480 mm pour 1,5-1,6 m de large. ⚠️ RÈGLE D'ACHAT : Voc ≤ 27 V par panneau — en série ×3 avec la correction grand froid (+12 %) on reste ≤ 91 V, sous les 100 V du MPPT. Vérifier la fiche technique AVANT de commander." },
+  { type: "mppt",     icon: "🔆", name: "MPPT Victron 100/50", role: "conv", U: 12, A: 50, eff: 0.97,
+    note: "100 V entrée max · 50 A sortie (720 W max en 12 V) · nécessaire pour exploiter les 600 W : un 100/30 plafonne à 440 W et écrêterait les pics. Réglable en courant pour brider la charge si besoin." },
+  { type: "b2b",      icon: "🔄", name: "Chargeur B2B Orion-Tr 12/12-30", role: "source", U: 12, A: 20,
+    note: "⚙️ BRIDÉ À 20 A dans VictronConnect (au lieu de 30 A) : c'est ce réglage qui fait tenir la charge cumulée sous les 60 A de la batterie. Profil LiFePO4 dédié, isolé galvaniquement. ~+350 Wh par heure de route. Un fusible à chaque extrémité." },
   { type: "alternateur", icon: "🚐", name: "Alternateur / batterie moteur", role: "source", U: 12, A: 140 },
   { type: "secteur",  icon: "🔌", name: "Chargeur secteur 230V", role: "source", U: 12, A: 20,
     note: "usage occasionnel · prise 230 V à l'INTÉRIEUR du van, près d'une porte (pas de prise extérieure, pas de perçage)" },
   { type: "batterie", icon: "🔋", name: "Batterie LiTime 300Ah", role: "storage", U: 12, Ah: 300, chem: "LiFePO4", bms: 200, chargeMax: 60,
-    note: "3840 Wh · BMS 200 A continu / 800 A pendant 1 s · courant de CHARGE max conseillé ~60 A" },
+    note: "3840 Wh · BMS 200 A continu / 800 A pendant 1 s · charge max conseillée ~60 A, respectée PAR RÉGLAGE : MPPT ~36 A réels à 600 W + B2B bridé à 20 A ≈ 56 A" },
   { type: "shunt",    icon: "📟", name: "SmartShunt 500A + écran", role: "dist", U: 12, Pidle: 3,
     note: "sur le − de la batterie : TOUS les négatifs, charge comprise, passent côté charge. Consomme ~3 W en permanence (72 Wh/j)." },
   { type: "coupe",    icon: "⛔", name: "Coupe-circuit général", role: "dist", U: 12,
@@ -232,11 +232,12 @@ export const FUSES = [2, 3, 5, 7.5, 10, 15, 20, 25, 30, 40, 50, 60, 80, 100, 125
 //   vx, vz = position réelle dans le van (mm) → sert au « Plan van » 2D et au
 //            calcul automatique des longueurs de câbles
 const EN = (type, x, y, over = {}) => ({ id: id(), type, x, y, ...over });
-const p1    = EN("panneau", 60, 40,  { name: "Panneau solaire 1", vz: -600, vx: 150 });
-const p2    = EN("panneau", 60, 156, { name: "Panneau solaire 2", vz: 200,  vx: 150 });
+const p1    = EN("panneau", 60, 30,  { name: "Panneau solaire 1", vz: -900, vx: 0 });
+const p2    = EN("panneau", 60, 120, { name: "Panneau solaire 2", vz: -230, vx: 0 });
+const p3    = EN("panneau", 60, 210, { name: "Panneau solaire 3", vz: 440,  vx: 0 });
 // le « coffre élec » : 3 rangées sur toute la largeur de l'arrière du van
 const mppt  = EN("mppt", 320, 98,           { vz: -1080, vx: 760 });
-const alt   = EN("alternateur", 60, 330,    { vz: 1600,  vx: 0 });
+const alt   = EN("alternateur", 60, 340,    { vz: 1600,  vx: 0 });
 const b2b   = EN("b2b", 320, 330,           { vz: -1080, vx: 380 });
 const sect  = EN("secteur", 320, 470,       { vz: -1080, vx: 20 });
 const bat   = EN("batterie", 600, 260,      { vz: -1600, vx: 380 });
@@ -261,12 +262,13 @@ const divers= EN("divers230", 1400, 756,   { vz: -700,  vx: -250 });
 // Uw = tension forcée sur le câble (ici la tension de la chaîne solaire).
 const EW = (a, b, len, over = {}) => ({ id: id(), a: a.id, b: b.id, len, ...over });
 export const DEFAULT_ELEC = {
-  params: { U: 12, dropPct: 3, sunH: 4, season: "ete" },
-  nodes: [p1, p2, mppt, alt, b2b, sect, bat, shunt, coupe, bus, fb, conv,
+  params: { U: 12, dropPct: 3, sunH: 4, sunHw: 1.6, season: "ete" },
+  nodes: [p1, p2, p3, mppt, alt, b2b, sect, bat, shunt, coupe, bus, fb, conv,
           frigo, led, pompe, fan, usb, chauf, ceau, lap, divers],
   wires: [
-    EW(p1, p2, 1.2, { autoLen: false }),          // les 2 panneaux en série
-    EW(p2, mppt, 5, { autoLen: false, Uw: 36 }),  // chaîne 36 V → passe-toit → MPPT
+    EW(p1, p2, 1, { autoLen: false }),            // les 3 panneaux en série
+    EW(p2, p3, 1, { autoLen: false }),
+    EW(p3, mppt, 5, { autoLen: false, Uw: 54 }),  // chaîne 54 V → passe-toit → MPPT
     EW(mppt, bat, 1.2),
     EW(alt, b2b, 6, { autoLen: false }),          // compartiment moteur → coffre arrière
     EW(b2b, bat, 0.8),

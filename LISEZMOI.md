@@ -150,6 +150,10 @@ l'appareil s'il est plus grand (champ « courant d'appel » : bougie du Webasto,
 démarrage du compresseur du frigo). Sans ça, un fusible calculé sur le courant
 nominal saute à chaque démarrage.
 
+Exception : pour un **chargeur** (MPPT, B2B, chargeur secteur), la marge tombe
+à 1,1 ×. Ces appareils ne peuvent pas dépasser leur courant de sortie, donc les
+25 % qui couvrent la variabilité d'un consommateur n'ont pas lieu d'être.
+
 Le **BMS de la batterie** plafonne tout : aucun câble 12 V ne peut voir plus
 que ce que la batterie sait débiter. Quand c'est le cas, un ⚠️ BMS s'affiche.
 Le bilan compare aussi l'appel de courant « tout allumé » à cette limite.
@@ -162,7 +166,9 @@ Deux réglages indépendants dans le panneau Paramètres :
 
 - **Saison** — **☀️ Été** ou **❄️ Hiver**. Chaque appareil a ses propres heures
   par jour dans les deux cas (le chauffage ne tourne pas l'été, l'éclairage
-  tourne deux fois plus l'hiver, le frigo moins).
+  tourne deux fois plus l'hiver, le frigo moins). L'**ensoleillement** aussi
+  a sa valeur par saison (4 h l'été, 1,6 h l'hiver) : sans ça l'appli
+  annoncerait un excédent en janvier.
 - **Usage** — **🏖 Courant** ou **💻 Télétravail**. Le télétravail s'applique
   par-dessus la saison : seuls les appareils qui déclarent des heures de
   télétravail changent (par défaut, le laptop passe de 2 h à 7 h par jour).
