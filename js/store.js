@@ -53,6 +53,7 @@ function migrate(s) {
   if (!(s.rev >= 4)) migrateRev4(s);
   if (!(s.rev >= 5)) migrateRev5(s);
   if (!(s.rev >= 6)) migrateRev6(s);
+  if (!(s.rev >= 7)) migrateRev7(s);
   return s;
 }
 
@@ -74,6 +75,29 @@ function migrateRev3(s) {
   respread(s.elec.nodes, DEFAULT_ELEC.nodes);
   respread(s.eau.nodes, DEFAULT_EAU.nodes);
   s.rev = 3;
+}
+
+// rev 7 — le B2B repasse à 30 A, pleine capacité, sans bridage. La charge
+// cumulée monte à ~66 A (0,22 C) : assumé, très loin des 200 A du BMS.
+function migrateRev7(s) {
+  const B = s.budget;
+  B.items = B.items.filter(it =>
+    !(it.name === "Fusibles de ligne B2B 50 A ×2 + porte-fusibles" && it.status !== "done"));
+  const have = new Set(B.items.map(it => it.name));
+  DEFAULT_BUDGET
+    .filter(b => b.cat === "Électricité" && !have.has(b.name))
+    .forEach(b => B.items.push({ ...JSON.parse(JSON.stringify(b)), id: uid() }));
+  // le B2B garde son nom : on rafraîchit sa note (plus de bridage)
+  const refB = DEFAULT_BUDGET.find(b => b.name.startsWith("Chargeur B2B Victron"));
+  const mienB = B.items.find(it => it.name === refB.name);
+  if (refB && mienB && mienB.status !== "done") mienB.notes = refB.notes;
+
+  s.elec = JSON.parse(JSON.stringify(DEFAULT_ELEC));
+
+  const refT = DEFAULT_TASKS.find(t => t.name === "Installer chargeur booster B2B sur alternateur");
+  const mienT = s.planning.tasks.find(t => t.name === refT.name);
+  if (refT && mienT && mienT.status !== "done") mienT.notes = refT.notes;
+  s.rev = 7;
 }
 
 // rev 6 — le 3e panneau solaire est acté (600 W) : MPPT 100/50 à la place du

@@ -47,7 +47,7 @@ export const DEFAULT_TASKS = [
   T(2, "Tirer les câbles (gaines) avant l'habillage des murs", 6, "Prévoir du mou et repérer chaque câble"),
   T(2, "Installer batterie 300Ah + coupe-circuit 300 A + SmartShunt", 3, "Tous les négatifs (charge comprise) côté charge du shunt"),
   T(2, "Câbler régulateur MPPT → batterie (10 mm², fusible 50 A)", 2),
-  T(2, "Installer chargeur booster B2B sur alternateur", 3, "25 mm² sur les 6 m moteur→coffre, fusible 50 A à chaque bout"),
+  T(2, "Installer chargeur booster B2B sur alternateur", 3, "30 A pleine capacité · 25 mm² sur les 6 m moteur→coffre, fusible 40 A à chaque bout"),
   T(2, "Poser boîte à fusibles 12V + borniers + / −", 2),
   T(2, "Câbler onduleur 500 W (16 mm² + fusible 60 A au ras du +)", 2, "Relier le neutre de sortie au châssis, sinon le différentiel 30 mA ne déclenche pas"),
   T(2, "Poser différentiel 30 mA + prise 230V intérieure", 2),
@@ -90,7 +90,7 @@ export const BUDGET_CATS = ["Isolation", "Bois & habillage", "Électricité", "C
 // Numéro de révision des données pré-remplies. Incrémenté quand la liste
 // d'achats / le schéma élec de référence change : store.js migre alors les
 // états déjà enregistrés (voir migrate()).
-export const DATA_REV = 6;
+export const DATA_REV = 7;
 
 const B = (cat, name, store, price, qty = 1, notes = "") =>
   ({ id: id(), cat, name, store, price, qty, status: "todo", link: "", notes });
@@ -112,8 +112,8 @@ export const DEFAULT_BUDGET = [
   B("Électricité", "Câble solaire 6 mm² (10 m) + connecteurs MC4", "123elec / Amazon", 40, 1, "6 mm² sur le toit (dossier élec). Le calcul de chute donnerait moins, mais les MC4 se sertissent en 4/6 mm²."),
   B("Électricité", "Câble MPPT → batterie 16 mm² + fusible 60 A", "123elec", 30, 1, "Sortie max du 100/50 = 50 A. Le dossier dit 10 mm² / 50 A : ça passe tout juste (10 mm² tient 52 A). 16 mm² + 60 A = la préconisation Victron pour ce modèle, et le fusible ne risque plus de fatiguer."),
   B("Électricité", "Régulateur MPPT Victron SmartSolar 100/50", "Victron / Amazon", 180, 1, "100 V entrée max · 50 A sortie (720 W max en 12 V) · Bluetooth. Obligatoire avec 600 W : le 100/30 plafonne à 440 W et écrêterait les pics."),
-  B("Électricité", "Chargeur B2B Victron Orion-Tr Smart 12/12-30A", "Victron / Amazon", 165, 1, "150-180 € · profil LiFePO4 dédié, isolé galvaniquement · ⚙️ à BRIDER à 20 A dans VictronConnect pour tenir sous les 60 A de charge de la batterie"),
-  B("Électricité", "Fusibles de ligne B2B 50 A ×2 + porte-fusibles", "123elec", 20, 1, "Un à CHAQUE bout : côté batterie moteur et côté batterie auxiliaire"),
+  B("Électricité", "Chargeur B2B Victron Orion-Tr Smart 12/12-30A", "Victron / Amazon", 165, 1, "150-180 € · profil LiFePO4 dédié, isolé galvaniquement · utilisé à pleine capacité (30 A), aucun bridage"),
+  B("Électricité", "Fusibles de ligne B2B 40 A ×2 + porte-fusibles", "123elec", 20, 1, "Un à CHAQUE bout : côté batterie moteur et côté batterie auxiliaire"),
   B("Électricité", "Chargeur secteur 230V ~20 A", "À définir", 115, 1, "80-150 € · usage occasionnel (camping avec prise, garage)"),
   B("Électricité", "Onduleur pur sinus 500 W, isolation galvanique", "À définir", 150, 1, "80-130 € en générique, ~230 € pour un Victron Phoenix 12/500. Décision finale : 500 W suffisent depuis l'abandon de la cuisson électrique (laptop 140 W + chargeur drone 100 W en simultané, avec marge)."),
   B("Électricité", "Batterie LiTime 12V 300Ah LiFePO4", "LiTime", 595, 1, "570-620 € · 3840 Wh · BMS 200 A continu / 800 A pendant 1 s"),
@@ -174,13 +174,13 @@ export const ELEC_LIB = [
     note: "3 panneaux identiques en SÉRIE (600 W), ~1480×670 mm, posés grand côté en travers du toit. 3×670 = 2010 mm pour 2065 mm dispo après le Maxxair (marge 55 mm) × 1480 mm pour 1,5-1,6 m de large. ⚠️ RÈGLE D'ACHAT : Voc ≤ 27 V par panneau — en série ×3 avec la correction grand froid (+12 %) on reste ≤ 91 V, sous les 100 V du MPPT. Vérifier la fiche technique AVANT de commander." },
   { type: "mppt",     icon: "🔆", name: "MPPT Victron 100/50", role: "conv", U: 12, A: 50, eff: 0.97,
     note: "100 V entrée max · 50 A sortie (720 W max en 12 V) · nécessaire pour exploiter les 600 W : un 100/30 plafonne à 440 W et écrêterait les pics. Réglable en courant pour brider la charge si besoin." },
-  { type: "b2b",      icon: "🔄", name: "Chargeur B2B Orion-Tr 12/12-30", role: "source", U: 12, A: 20,
-    note: "⚙️ BRIDÉ À 20 A dans VictronConnect (au lieu de 30 A) : c'est ce réglage qui fait tenir la charge cumulée sous les 60 A de la batterie. Profil LiFePO4 dédié, isolé galvaniquement. ~+350 Wh par heure de route. Un fusible à chaque extrémité." },
+  { type: "b2b",      icon: "🔄", name: "Chargeur B2B Orion-Tr 12/12-30", role: "source", U: 12, A: 30,
+    note: "Pleine capacité, AUCUN bridage. Profil LiFePO4 dédié, isolé galvaniquement. ~+350 Wh par heure de route. Un fusible à chaque extrémité." },
   { type: "alternateur", icon: "🚐", name: "Alternateur / batterie moteur", role: "source", U: 12, A: 140 },
   { type: "secteur",  icon: "🔌", name: "Chargeur secteur 230V", role: "source", U: 12, A: 20,
     note: "usage occasionnel · prise 230 V à l'INTÉRIEUR du van, près d'une porte (pas de prise extérieure, pas de perçage)" },
   { type: "batterie", icon: "🔋", name: "Batterie LiTime 300Ah", role: "storage", U: 12, Ah: 300, chem: "LiFePO4", bms: 200, chargeMax: 60,
-    note: "3840 Wh · BMS 200 A continu / 800 A pendant 1 s · charge max conseillée ~60 A, respectée PAR RÉGLAGE : MPPT ~36 A réels à 600 W + B2B bridé à 20 A ≈ 56 A" },
+    note: "3840 Wh · BMS 200 A continu / 800 A pendant 1 s. Charge réelle max : MPPT ~36 A + B2B 30 A ≈ 66 A, soit ~0,22 C — très loin des 200 A du BMS, un peu au-dessus du confort usuel (~0,2 C), et rare : il faut plein soleil ET rouler en même temps." },
   { type: "shunt",    icon: "📟", name: "SmartShunt 500A + écran", role: "dist", U: 12, Pidle: 3,
     note: "sur le − de la batterie : TOUS les négatifs, charge comprise, passent côté charge. Consomme ~3 W en permanence (72 Wh/j)." },
   { type: "coupe",    icon: "⛔", name: "Coupe-circuit général", role: "dist", U: 12,

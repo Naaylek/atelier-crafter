@@ -241,15 +241,21 @@ function energyBalance() {
   // recharge en roulant : seul le B2B compte (le chargeur secteur suppose une prise)
   const chargeA = E.nodes.filter(n => n.type === "b2b")
     .reduce((t, n) => t + (+spec(n).A || 0), 0);
-  // Charge solaire réelle : ce que les panneaux rendent à la tension de charge
-  // (~14,4 V en LiFePO4), plafonné par la sortie max du régulateur — et non
-  // la puissance crête divisée par 12 V, qui surestime.
+  // Charge solaire réelle. Un panneau ne rend pas sa puissance de plaque :
+  // température, poussière, écarts entre panneaux → ~85 % en bonnes conditions.
+  // Le tout à la tension de charge (~13,8 V), plafonné par la sortie max du
+  // régulateur. Diviser la puissance crête par 12 V surestimerait nettement.
+  const PV_YIELD = 0.85, U_CHARGE = 13.8;
+  const mpptNode = E.nodes.find(n => n.type === "mppt");
   const mpptA = E.nodes.filter(n => n.type === "mppt").reduce((t, n) => t + (+spec(n).A || 0), 0);
-  const mpptEff = E.nodes.find(n => n.type === "mppt") ? (spec(E.nodes.find(n => n.type === "mppt")).eff || 0.97) : 0.97;
-  const solarRaw = pv * mpptEff / 14.4;
+  const mpptEff = mpptNode ? (spec(mpptNode).eff || 0.97) : 0.97;
+  const solarRaw = pv * PV_YIELD * mpptEff / U_CHARGE;
   const solarA = mpptA > 0 ? Math.min(solarRaw, mpptA) : solarRaw;
   const chargeTotA = solarA + chargeA;
   const chargeMax = bats.reduce((t, n) => t + (+spec(n).chargeMax || 0), 0);
+  // taux de charge en C : courant de charge rapporté à la capacité
+  const capAh = bats.reduce((t, n) => t + (+spec(n).Ah || 0), 0);
+  const cRate = capAh > 0 ? chargeTotA / capAh : 0;
   // les 4 cas du dossier : été / hiver × usage courant / télétravail
   const cases = {
     eteNormal: consoFor("ete", false), eteWork: consoFor("ete", true),
@@ -257,7 +263,7 @@ function energyBalance() {
   };
   return {
     loads, idles, bats, conso, prod, capWh, peakA, bms, chargeA,
-    solarA, chargeTotA, chargeMax, season, work, cases,
+    solarA, chargeTotA, chargeMax, cRate, pv, season, work, cases,
     autonomy: conso > 0 ? capWh / conso : Infinity,
   };
 }
@@ -642,13 +648,21 @@ export function render(root) {
       <p style="font-size:12px" class="${b.peakA > b.bms ? "bad" : "ok"}">${b.peakA > b.bms
         ? `⚠️ ${fmt(b.peakA - b.bms)} A de trop : le BMS coupera, tu ne pourras pas tout faire tourner ensemble.`
         : `✅ Même tout allumé (${fmt(b.peakA)} A), on reste largement sous le BMS.`}</p>` : ""}
-      ${b.chargeMax ? `<table class="calc-table" style="margin-top:6px">
+      ${b.chargeMax ? (() => {
+        const sous = b.chargeTotA <= b.chargeMax + 1;
+        const grave = b.bms && b.chargeTotA > b.bms;
+        return `<table class="calc-table" style="margin-top:6px">
         <tr><td>Charge cumulée solaire + B2B</td><td class="right"><strong>${fmt(b.chargeTotA)} A</strong> <span class="muted">(${fmt(b.solarA)} + ${fmt(b.chargeA)})</span></td></tr>
-        <tr><td>Charge max acceptée par la batterie</td><td class="right"><strong>${fmt(b.chargeMax)} A</strong></td></tr>
+        <tr><td>Taux de charge</td><td class="right"><strong>${fmt(b.cRate, 2)} C</strong></td></tr>
+        <tr><td>Confort usuel / limite BMS</td><td class="right">${fmt(b.chargeMax)} A / ${fmt(b.bms)} A</td></tr>
+        <tr><td colspan="2" class="muted" style="font-size:10px">Solaire : ${fmt(b.pv)} W × 85 % à 13,8 V, plafonné par le régulateur</td></tr>
       </table>
-      <p style="font-size:12px" class="${b.chargeTotA > b.chargeMax + 1 ? "bad" : "ok"}">${b.chargeTotA > b.chargeMax + 1
-        ? `⚠️ ${fmt(b.chargeTotA - b.chargeMax)} A au-dessus en plein soleil ET en roulant. À brider sur le MPPT ou le B2B.`
-        : "✅ Solaire et B2B ensemble restent sous la charge max de la batterie."}</p>` : ""}
+      <p style="font-size:12px" class="${grave ? "bad" : sous ? "ok" : "warn"}">${grave
+        ? `⚠️ ${fmt(b.chargeTotA - b.bms)} A au-dessus du BMS : il coupera la charge.`
+        : sous
+        ? "✅ Solaire et B2B ensemble restent sous le confort de charge de la batterie."
+        : `Un peu au-dessus du confort usuel (${fmt(b.chargeMax)} A), mais à ${fmt(b.cRate, 2)} C on reste très loin des ${fmt(b.bms)} A du BMS. Et ça suppose plein soleil ET roulage en même temps : rare, et sans danger.`}</p>`;
+      })() : ""}
     </fieldset>`;
     el.querySelectorAll("tr[data-nid]").forEach(tr => {
       const n = E.nodes.find(x => x.id === tr.dataset.nid);

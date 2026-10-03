@@ -180,11 +180,17 @@ touche pas ses 2 h d'usage courant.
 Un petit tableau récapitule les **4 cas** en bas du bilan (été/hiver ×
 courant/télétravail) — c'est le pire des quatre qui dimensionne la batterie.
 
-Le bilan surveille aussi deux choses que le dossier électrique signale :
+Le bilan surveille aussi deux choses :
 
 - **l'appel de courant** si tout tourne en même temps, contre la limite du BMS ;
-- **la charge cumulée** solaire + B2B, contre le courant de charge que la
-  batterie accepte (~60 A pour la LiTime 300 Ah).
+- **la charge cumulée** solaire + B2B, affichée aussi en **taux de charge (C)**.
+  Le courant solaire est estimé à 85 % de la puissance de plaque, à 13,8 V, et
+  plafonné par la sortie du régulateur — diviser les watts crête par 12 V
+  surestimerait nettement.
+
+Entre le confort de charge usuel (~0,2 C) et la limite du BMS, le message est
+orange et explicatif, pas rouge : dépasser un peu le confort en plein soleil
+**et** en roulant n'est ni dangereux ni fréquent.
 ## Raccourcis Van 3D
 
 | Action | Commande |
