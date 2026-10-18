@@ -114,6 +114,34 @@ table.grid tr:hover td { background: #faf7f1; }
 table.grid input[type="text"] { width: 100%; min-width: 90px; }
 table.grid .w-s input[type="text"] { min-width: 60px; }
 
+/* ---------- budget : couleurs par catégorie ----------
+   --cc = couleur de la catégorie, posée en ligne sur chaque <tr>. */
+table.grid tr.cat-row td { background: color-mix(in srgb, var(--cc) 7%, var(--panel)); }
+table.grid tr.cat-row td:first-child { box-shadow: inset 4px 0 0 var(--cc); }
+table.grid tr.cat-row:hover td { background: color-mix(in srgb, var(--cc) 13%, var(--panel)); }
+table.grid tr.grp td {
+  background: color-mix(in srgb, var(--cc) 20%, var(--panel));
+  border-top: 2px solid var(--cc); padding: 7px 10px;
+}
+table.grid tr.grp:hover td { background: color-mix(in srgb, var(--cc) 20%, var(--panel)); }
+.grp-in { display: flex; align-items: center; gap: 10px; }
+.grp-in .spacer { flex: 1; }
+.grp-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--cc); flex: none; }
+.grp-act { display: inline-flex; gap: 4px; margin-left: 6px; }
+.b-move { display: inline-flex; gap: 2px; margin-right: 4px; }
+.b-move .btn, .grp-act .btn { padding: 2px 6px; font-size: 11px; line-height: 1.2; }
+.b-move .btn:disabled, .grp-act .btn:disabled { opacity: .3; cursor: default; }
+table.grid td.c-act { white-space: nowrap; }
+/* pastilles du haut : liseré de la couleur + sélecteur de couleur rond */
+.cat-chip { border-left: 4px solid var(--cc); padding-left: 8px; }
+.cat-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+  overflow: hidden; vertical-align: -2px; margin-right: 5px; cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.15); background: var(--cc); }
+.cat-swatch input { opacity: 0; width: 28px; height: 28px; margin: -7px; cursor: pointer; border: 0; padding: 0; }
+/* la ligne qu'on vient de déplacer clignote une fois, pour ne pas la perdre de vue */
+@keyframes ac-flash { from { background: color-mix(in srgb, var(--cc) 45%, var(--panel)); } }
+table.grid tr.moved td { animation: ac-flash .9s ease-out; }
+
 .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
 .badge.todo { background: #efe9de; color: #6b6252; }
 .badge.doing { background: #fdeacc; color: #a3690f; }
@@ -205,6 +233,8 @@ legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
 
 @media print {
   #topbar, .editor-side, #van-side, .toolrow { display: none !important; }
+  .b-move, .grp-act, .cat-swatch { display: none !important; }
+  table.grid tr.cat-row td, table.grid tr.grp td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
 /* ============================================================
@@ -320,6 +350,16 @@ legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
   table.grid td.c-act { position: absolute; top: 5px; right: 8px; padding: 0; }
   table.grid td.c-act .btn { padding: 5px 11px; font-size: 13px; }
   table.grid td.right { justify-content: flex-start; }
+  /* budget : la fiche entière prend la couleur de sa catégorie */
+  table.grid tr.cat-row { background: color-mix(in srgb, var(--cc) 7%, var(--panel)); border-left: 5px solid var(--cc); }
+  table.grid tr.cat-row td, table.grid tr.cat-row:hover td { background: transparent; }
+  table.grid tr.cat-row td:first-child { box-shadow: none; }
+  /* le bandeau de catégorie reste un bandeau, pas une fiche */
+  table.grid tr.grp { padding: 0; margin: 16px 8px 2px; border: none; border-radius: 9px; overflow: hidden; }
+  table.grid tr.grp td { position: static; padding: 8px 10px; border-top: none; border-left: 5px solid var(--cc); }
+  .grp-in { flex-wrap: wrap; row-gap: 6px; }
+  table.grid tr.cat-row td.c-act { display: flex; gap: 4px; }
+  .b-move .btn { padding: 5px 9px; font-size: 13px; }
   .phase-head { flex-wrap: wrap; gap: 8px; }
   .phase-head .progress { order: 5; flex: 1 0 100%; max-width: none; }
 

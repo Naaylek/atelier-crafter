@@ -99,8 +99,19 @@ dans `js/secret.js` par la sortie. Demande-moi, c'est immédiat.
 - **🏠 Tableau de bord** — avancement, budget, prochaine étape, fiche du van.
 - **📋 Planning** — 48 tâches pré-remplies en 8 phases (préparation → VASP),
   durées, dates, statuts. Coche au fur et à mesure.
-- **💶 Budget** — liste d'achats pré-remplie (~7 200 € hors mécanique), par
-  catégorie, avec magasins, prix et notes. Coche = acheté. Modifie tout.
+- **💶 Budget** — liste d'achats pré-remplie, par catégorie, avec magasins,
+  prix et notes. Coche = acheté. Modifie tout.
+  - **Affichage « Par catégorie »** (par défaut) : un bandeau coloré par
+    catégorie avec son nombre d'articles et son sous-total, et un bouton
+    **+ article** qui ajoute directement dans cette catégorie. **« Ordre
+    libre »** : une seule liste, dans l'ordre que tu as choisi.
+  - **Couleurs** : chaque catégorie a la sienne, reprise sur ses lignes, son
+    bandeau et sa pastille du haut. Clique la petite pastille ronde à côté du
+    nom de la catégorie pour la changer.
+  - **▲ ▼** sur chaque ligne pour la monter ou la descendre. En mode « Par
+    catégorie » elle reste dans sa catégorie ; en « Ordre libre » elle peut
+    passer entre deux lignes d'une autre catégorie. Les ▲ ▼ des bandeaux
+    réordonnent les catégories elles-mêmes. Tout s'annule avec ↩️.
   Catégories **Gaz** (cuisson butane) et **Chauffage** (Webasto) séparées de
   l'électricité, pour voir où part vraiment l'argent.
 - **⚡ Électricité** — deux vues : **🗺 Schéma** (câbles à angles droits,
