@@ -54,6 +54,7 @@ function migrate(s) {
   if (!(s.rev >= 5)) migrateRev5(s);
   if (!(s.rev >= 6)) migrateRev6(s);
   if (!(s.rev >= 7)) migrateRev7(s);
+  if (!(s.rev >= 8)) migrateRev8(s);
   return s;
 }
 
@@ -75,6 +76,119 @@ function migrateRev3(s) {
   respread(s.elec.nodes, DEFAULT_ELEC.nodes);
   respread(s.eau.nodes, DEFAULT_EAU.nodes);
   s.rev = 3;
+}
+
+// Les migrations plus anciennes que la rev 8 tournent sur un planning qui n'a
+// pas encore la phase « Découpes » (insérée en position 1) : il faut ramener le
+// numéro de phase des tâches par défaut à l'ancienne numérotation.
+const preRev8Phase = p => (p >= 2 ? p - 1 : p);
+
+// rev 8 — planning remis à jour. Nouvelle phase « Découpes & ouvertures »
+// AVANT l'isolation : lanterneau + 3 fenêtres + passe-toit + percements du
+// plancher se font dans la tôle nue, puis on traite, on rend étanche, on isole.
+// Règles : on ne touche jamais une tâche faite ; une tâche dont tu as modifié
+// les notes garde tes notes ; une tâche renommée par toi n'est pas reconnue,
+// donc pas touchée.
+const REV8_PHASE = "Découpes & ouvertures";
+// anciennes tâches à DÉPLACER dans la nouvelle phase (id, date, statut gardés)
+const REV8_MOVE = {
+  "Découper + poser lanterneau MaxxFan dans le toit":
+    { to: "Poser le lanterneau Maxxair", oldNotes: "La découpe qui fait peur — mesurer 3 fois" },
+  "Poser fenêtre(s) latérale(s) si prévu":
+    { to: "Poser les 3 fenêtres (partie extérieure)", oldNotes: "" },
+  "Percer + poser passe-toit câbles panneaux solaires":
+    { to: "Percer le passe-toit des câbles solaires", oldNotes: "Étanchéité Sikaflex 522 !" },
+};
+// tâches renommées sur place, et/ou dont la note par défaut est rafraîchie
+const REV8_UPDATE = {
+  "Câbler régulateur MPPT → batterie (10 mm², fusible 50 A)":
+    { to: "Câbler régulateur MPPT 100/50 → batterie (16 mm², fusible 60 A)", oldNotes: "" },
+  "Isoler parois (laine de bois / Armaflex 25mm)":
+    { to: "Isoler parois (Armaflex 19 mm)", oldNotes: "Armaflex collé sur tôle, combler les corps creux" },
+  "Isoler plafond (Armaflex 25mm)":
+    { to: "Isoler plafond (Armaflex 19 mm)", oldNotes: "" },
+  "Rideaux / occultants cabine et fenêtres":
+    { to: "Rideaux / occultants cabine + 3 fenêtres", oldNotes: "" },
+  "Poser plancher contreplaqué 15mm vissé": { oldNotes: "" },
+  "Fixer 3 panneaux solaires sur le toit (rails + colle)":
+    { oldNotes: "Grand côté en travers · 2010 mm pour 2065 mm dispo : mesurer avant de coller" },
+  "Installer chauffage Webasto : piquage réservoir, échappement, silencieux":
+    { oldNotes: "Homologué ECE R10/R122 → accepté en VASP. Faire poser si doute sur le piquage" },
+  "Installer le gaz : caisson ventilé, détendeur 28 mbar, lyre INOX":
+    { oldNotes: "Grille d'aération vers l'extérieur · NF EN 1949 et NF EN 721 · test à l'eau savonneuse" },
+};
+const REV8_HAB_NEW = "Poser les cadres intérieurs des 3 fenêtres + l'habillage du lanterneau";
+
+function migrateRev8(s) {
+  const P = s.planning;
+  const def = name => DEFAULT_TASKS.find(t => t.name === name);
+  const notDone = t => t.status !== "done";
+  const sameNotes = (t, old) => (t.notes || "") === (old || "");
+
+  // 1. insérer la phase juste avant l'isolation (une seule fois)
+  let cut = P.phases.findIndex(n => n.includes(REV8_PHASE));
+  if (cut < 0) {
+    const iso = P.phases.findIndex(n => /isolation/i.test(n));
+    cut = iso >= 0 ? iso : Math.min(1, P.phases.length);
+    P.phases.splice(cut, 0, cut + " · " + REV8_PHASE);
+    P.tasks.forEach(t => { if (t.phase >= cut) t.phase++; });
+    // renuméroter les noms de phase qui commencent par « N · »
+    P.phases = P.phases.map((n, i) => n.replace(/^\d+\s*·\s*/, i + " · "));
+  }
+  const hab = P.phases.findIndex(n => /habillage/i.test(n));
+
+  // 2. déplacer les anciennes tâches de découpe dans la nouvelle phase
+  P.tasks.forEach(t => {
+    const m = REV8_MOVE[t.name];
+    if (!m || !notDone(t)) return;
+    const d = def(m.to);
+    t.name = m.to; t.phase = cut;
+    if (sameNotes(t, m.oldNotes)) { t.notes = d.notes; t.dur = d.dur; }
+  });
+
+  // 3. renommages et notes rafraîchies
+  P.tasks.forEach(t => {
+    const u = REV8_UPDATE[t.name];
+    if (!u || !notDone(t)) return;
+    const d = def(u.to || t.name);
+    if (u.to) t.name = u.to;
+    if (d && sameNotes(t, u.oldNotes)) t.notes = d.notes;
+  });
+
+  // 4. ajouter ce qui manque (phase découpes + cadres intérieurs à l'habillage).
+  //    Une ancienne tâche déjà FAITE n'a pas été déplacée : sa remplaçante
+  //    ne doit pas être ajoutée, sinon elle apparaîtrait en double.
+  const have = new Set(P.tasks.map(t => t.name));
+  P.tasks.forEach(t => { if (REV8_MOVE[t.name] && !notDone(t)) have.add(REV8_MOVE[t.name].to); });
+  const cutPhase = DEFAULT_TASKS.filter(t => t.phase === 1);
+  cutPhase.forEach(d => {
+    if (!have.has(d.name)) P.tasks.push({ ...JSON.parse(JSON.stringify(d)), id: uid(), phase: cut });
+  });
+  if (hab >= 0 && !have.has(REV8_HAB_NEW)) {
+    P.tasks.push({ ...JSON.parse(JSON.stringify(def(REV8_HAB_NEW))), id: uid(), phase: hab, _after: "Habiller plafond" });
+  }
+
+  // 5. remettre de l'ordre : tri par phase (stable). Dans la phase découpes,
+  //    ordre logique du chantier ; ailleurs, l'ordre existant est conservé.
+  const canon = cutPhase.map(t => t.name);
+  const pos = new Map(P.tasks.map((t, i) => [t, i]));
+  const key = t => {
+    if (t.phase === cut) {
+      const c = canon.indexOf(t.name);
+      return c >= 0 ? c : 1000 + pos.get(t);
+    }
+    if (t._after) {
+      const ref = P.tasks.find(x => x.name === t._after && x.phase === t.phase);
+      return ref ? pos.get(ref) + 0.5 : pos.get(t);
+    }
+    return pos.get(t);
+  };
+  P.tasks = P.tasks
+    .map(t => [t, t.phase, key(t)])
+    .sort((a, b) => (a[1] - b[1]) || (a[2] - b[2]))
+    .map(([t]) => { delete t._after; return t; });
+
+  s.rev = 8;
 }
 
 // rev 7 — le B2B repasse à 30 A, pleine capacité, sans bridage. La charge
@@ -182,7 +296,7 @@ function migrateRev5(s) {
   const names = new Set(P.tasks.map(t => t.name));
   DEFAULT_TASKS
     .filter(t => REV5_NEW_TASKS.includes(t.name) && !names.has(t.name))
-    .forEach(t => P.tasks.push({ ...JSON.parse(JSON.stringify(t)), id: uid() }));
+    .forEach(t => P.tasks.push({ ...JSON.parse(JSON.stringify(t)), id: uid(), phase: preRev8Phase(t.phase) }));
 
   s.rev = 5;
 }
@@ -262,7 +376,7 @@ function migrateRev2(s) {
       "Installer chauffe-eau 12V Elgena + câble 6 mm² / fusible 25 A",
       "Installer chauffage Webasto : piquage réservoir, échappement, silencieux",
     ].includes(t.name))
-    .forEach(t => P.tasks.push({ ...JSON.parse(JSON.stringify(t)), id: uid() }));
+    .forEach(t => P.tasks.push({ ...JSON.parse(JSON.stringify(t)), id: uid(), phase: preRev8Phase(t.phase) }));
 
   s.rev = 2;
 }

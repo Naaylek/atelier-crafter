@@ -97,8 +97,13 @@ dans `js/secret.js` par la sortie. Demande-moi, c'est immédiat.
 ## Les onglets
 
 - **🏠 Tableau de bord** — avancement, budget, prochaine étape, fiche du van.
-- **📋 Planning** — 48 tâches pré-remplies en 8 phases (préparation → VASP),
+- **📋 Planning** — 62 tâches pré-remplies en 9 phases (préparation → VASP),
   durées, dates, statuts. Coche au fur et à mesure.
+  La phase **1 · Découpes & ouvertures** passe AVANT l'isolation : lanterneau,
+  3 fenêtres, passe-toit solaire et percements du plancher (Webasto, aération
+  du caisson gaz) se font dans la tôle nue, chants traités, étanchéité testée,
+  et seulement ensuite on isole. La « prochaine tâche » suit l'ordre des
+  phases, pas l'ordre de création.
 - **💶 Budget** — liste d'achats pré-remplie, par catégorie, avec magasins,
   prix et notes. Coche = acheté. Modifie tout.
   - **Affichage « Par catégorie »** (par défaut) : un bandeau coloré par

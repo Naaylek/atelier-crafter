@@ -1,6 +1,6 @@
 // Tableau de bord : vue d'ensemble du projet.
 import { state, eur, fmt, resetAll, save } from "./store.js";
-import { esc } from "./planning.js";
+import { esc, nextTask } from "./planning.js";
 import { reveal, isUnlocked, MASK } from "./secret.js";
 
 export function render(root) {
@@ -15,7 +15,7 @@ export function render(root) {
   const spent = bSum(bItems.filter(i => i.status === "done"));
   const max = state.budget.max;
 
-  const next = tasks.find(t => t.status === "doing") || tasks.find(t => t.status === "todo");
+  const next = nextTask();
   const V = state.van;
   const nMeubles = (state.layouts[state.activeLayout] || {}).items?.length || 0;
 

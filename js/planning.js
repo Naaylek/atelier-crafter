@@ -146,9 +146,15 @@ function rowHTML(t, phases) {
   </tr>`;
 }
 
-function nextTask() {
-  const t = state.planning.tasks;
-  return t.find(x => x.status === "doing") || t.find(x => x.status === "todo");
+// Prochaine tâche : une tâche en cours d'abord, sinon la première à faire dans
+// l'ORDRE DES PHASES (et non dans l'ordre de création : une tâche ajoutée plus
+// tard en phase 0 doit passer avant tout le reste).
+export function nextTask() {
+  const byPhase = state.planning.tasks
+    .map((t, i) => [t, i])
+    .sort((a, b) => (a[0].phase - b[0].phase) || (a[1] - b[1]))
+    .map(([t]) => t);
+  return byPhase.find(x => x.status === "doing") || byPhase.find(x => x.status === "todo");
 }
 
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
